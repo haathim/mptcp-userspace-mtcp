@@ -78,9 +78,12 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 {
 	int i = 0;
 
+
+
 	if (flags & TCP_FLAG_SYN) {
 		uint16_t mss;
 
+		
 		/* MSS option */
 		mss = cur_stream->sndvar->mss;
 		tcpopt[i++] = TCP_OPT_MSS;
@@ -88,16 +91,35 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = mss >> 8;
 		tcpopt[i++] = mss % 256;
 
-		/* MPTCP MP_CAPABLE option (add this block) */
+
+
+		/* MPTCP MP_CAPABLE option */
         tcpopt[i++] = TCP_OPT_MPTCP;
-        tcpopt[i++] = TCP_OPT_MPTCP_LEN;
+
+		if(flags & TCP_FLAG_ACK){
+			// SYN/ACK
+        	tcpopt[i++] = 12;
+		}else{
+			// SYN
+			tcpopt[i++] = 4;
+		}
         // MP_CAPABLE Option
         tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
         tcpopt[i++] = TCP_MPTCP_VERSION;
 
-		// In version 1 no need to send with SYN
-        // memcpy(&tcpopt[i], &cur_stream->sndvar->mptcp_key, sizeof(cur_stream->sndvar->mptcp_key));
-        // i += sizeof(cur_stream->sndvar->mptcp_key);
+		// SYN/ACK
+		if(flags & TCP_FLAG_ACK){
+			//Send a 64 bit value (key) in tcp options
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00; 
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x10; 
+		}
+
         /* End of MP_CAPABLE Option */
 
 		/* SACK permit */
