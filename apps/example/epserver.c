@@ -24,6 +24,7 @@
 #include "netlib.h"
 #include "debug.h"
 
+
 #define MAX_FLOW_NUM  (10000)
 
 #define RCVBUF_SIZE (2*1024)
@@ -185,100 +186,116 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
 	return sent;
 }
 /*----------------------------------------------------------------------------*/
-static int 
+static int
 HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
 {
-	struct mtcp_epoll_event ev;
-	char buf[HTTP_HEADER_LEN];
-	char url[URL_LEN];
-	char response[HTTP_HEADER_LEN];
-	int scode;						// status code
-	time_t t_now;
-	char t_str[128];
-	char keepalive_str[128];
-	int rd;
-	int i;
-	int len;
-	int sent;
+        printf("Inside HandleReadEvent\n");
+        struct mtcp_epoll_event ev;
+        char buf[HTTP_HEADER_LEN];
+        char url[URL_LEN];
+        char response[HTTP_HEADER_LEN];
+        int scode;                                              // status code
+        time_t t_now;
+        char t_str[128];
+        char keepalive_str[128];
+        int rd;
+        int i;
+        int len;
+        int sent;
 
-	/* HTTP request handling */
-	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
-	if (rd <= 0) {
-		return rd;
-	}
-	memcpy(sv->request + sv->recv_len, 
-			(char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
-	sv->recv_len += rd;
-	//sv->request[rd] = '\0';
-	//fprintf(stderr, "HTTP Request: \n%s", request);
-	sv->request_len = find_http_header(sv->request, sv->recv_len);
-	if (sv->request_len <= 0) {
-		TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
-				"read bytes: %d, recv_len: %d, "
-				"request_len: %d, strlen: %ld, request: \n%s\n", 
-				sockid, rd, sv->recv_len, 
-				sv->request_len, strlen(sv->request), sv->request);
-		return rd;
-	}
+        /* HTTP request handling */
+        rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
+        if (rd <= 0) { 
+                return rd;
+        }
+        memcpy(sv->request + sv->recv_len, 
+                        (char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
+        sv->recv_len += rd; 
+        //sv->request[rd] = '\0';
+        //fprintf(stderr, "HTTP Request: \n%s", request);
+        printf("Inside HandleReadEvent 1\n");
+        // sv->request_len = find_http_header(sv->request, sv->recv_len);
+        // if (sv->request_len <= 0) {
+        //         TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
+        //                         "read bytes: %d, recv_len: %d, "
+        //                         "request_len: %d, strlen: %ld, request: \n%s\n",
+        //                         sockid, rd, sv->recv_len, 
+        //                         sv->request_len, strlen(sv->request), sv->request);
+        //         return rd;
+        // }
 
-	http_get_url(sv->request, sv->request_len, url, URL_LEN);
-	TRACE_APP("Socket %d URL: %s\n", sockid, url);
-	sprintf(sv->fname, "%s%s", www_main, url);
-	TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
+        printf("Inside HandleReadEvent 2\n");
+        // http_get_url(sv->request, sv->request_len, url, URL_LEN);
+        // TRACE_APP("Socket %d URL: %s\n", sockid, url);
+        // sprintf(sv->fname, "%s%s", www_main, url);
+        // TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
 
-	sv->keep_alive = FALSE;
-	if (http_header_str_val(sv->request, "Connection: ", 
-				strlen("Connection: "), keepalive_str, 128)) {	
-		if (strstr(keepalive_str, "Keep-Alive")) {
-			sv->keep_alive = TRUE;
-		} else if (strstr(keepalive_str, "Close")) {
-			sv->keep_alive = FALSE;
-		}
-	}
+        printf("Inside HandleReadEvent 3\n");
+        sv->keep_alive = FALSE;
+        // if (http_header_str_val(sv->request, "Connection: ",
+        //                         strlen("Connection: "), keepalive_str, 128)) {
+        //         if (strstr(keepalive_str, "Keep-Alive")) {
+        //                 sv->keep_alive = TRUE;
+        //         } else if (strstr(keepalive_str, "Close")) {
+        //                 sv->keep_alive = FALSE;
+        //         }
+        // }
 
-	/* Find file in cache */
-	scode = 404;
-	for (i = 0; i < nfiles; i++) {
-		if (strcmp(sv->fname, fcache[i].fullname) == 0) {
-			sv->fsize = fcache[i].size;
-			sv->fidx = i;
-			scode = 200;
-			break;
-		}
-	}
-	TRACE_APP("Socket %d File size: %ld (%ldMB)\n", 
-			sockid, sv->fsize, sv->fsize / 1024 / 1024);
+        printf("Inside HandleReadEvent 4\n");
+        /* Find file in cache */
+        // scode = 404;
+        // for (i = 0; i < nfiles; i++) {
+        //         if (strcmp(sv->fname, fcache[i].fullname) == 0) {
+        //                 sv->fsize = fcache[i].size;
+        //                 sv->fidx = i;
+        //                 scode = 200;
+        //                 break;
+        //         }
+        // }
+        // TRACE_APP("Socket %d File size: %ld (%ldMB)\n",
+                        // sockid, sv->fsize, sv->fsize / 1024 / 1024);
 
-	/* Response header handling */
-	time(&t_now);
-	strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
-	if (sv->keep_alive)
-		sprintf(keepalive_str, "Keep-Alive");
-	else
-		sprintf(keepalive_str, "Close");
+        printf("Inside HandleReadEvent 5\n");
+        /* Response header handling */
+        // time(&t_now);
+        // strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
+        // if (sv->keep_alive)
+        //         sprintf(keepalive_str, "Keep-Alive");
+        // else
+        //         sprintf(keepalive_str, "Close");
 
-	sprintf(response, "HTTP/1.1 %d %s\r\n"
-			"Date: %s\r\n"
-			"Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
-			"Content-Length: %ld\r\n"
-			"Connection: %s\r\n\r\n", 
-			scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
-	len = strlen(response);
-	TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
-	sent = mtcp_write(ctx->mctx, sockid, response, len);
-	TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n", 
-			sockid, len, sent);
-	assert(sent == len);
-	sv->rspheader_sent = TRUE;
+        printf("Inside HandleReadEvent 6\n");
+        // sprintf(response, "HTTP/1.1 %d %s\r\n"
+        //                 "Date: %s\r\n"
+        //                 "Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
+        //                 "Content-Length: %ld\r\n"
+        //                 "Connection: %s\r\n\r\n",
+        //                 scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
 
-	ev.events = MTCP_EPOLLIN | MTCP_EPOLLOUT;
-	ev.data.sockid = sockid;
-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+        printf("Inside HandleReadEvent 1\n");
+        // set response to "I have recieved your message"
+        sprintf(response, "I have recieved your message");
+        len = strlen(response);
+        // TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
+        printf("Before mtcp_write\n");
+        sent = mtcp_write(ctx->mctx, sockid, response, len);
+        printf("After mtcp_write\n");
+        // TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n",
+                        //sockid, len, sent);
+        assert(sent == len); 
+        // sv->rspheader_sent = TRUE;
 
-	SendUntilAvailable(ctx, sockid, sv);
+        ev.events = MTCP_EPOLLIN | MTCP_EPOLLOUT;
+        ev.data.sockid = sockid;
+        mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
 
-	return rd;
+        printf("Inside HandleReadEvent 7\n");
+        SendUntilAvailable(ctx, sockid, sv);
+        printf("Inside HandleReadEvent 8\n");
+
+        return rd;
 }
+
 /*----------------------------------------------------------------------------*/
 int 
 AcceptConnection(struct thread_context *ctx, int listener)
@@ -303,6 +320,7 @@ AcceptConnection(struct thread_context *ctx, int listener)
 		ev.data.sockid = c;
 		mtcp_setsock_nonblock(ctx->mctx, c);
 		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, c, &ev);
+		printf("Socket registered!\n");
 		TRACE_APP("Socket %d registered.\n", c);
 
 	} else {
@@ -387,7 +405,7 @@ CreateListeningSocket(struct thread_context *ctx)
 	/* bind to port 80 */
 	saddr.sin_family = AF_INET;
 	saddr.sin_addr.s_addr = INADDR_ANY;
-	saddr.sin_port = htons(80);
+	saddr.sin_port = htons(12345);
 	ret = mtcp_bind(ctx->mctx, listener, 
 			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
 	if (ret < 0) {
@@ -480,16 +498,20 @@ RunServerThread(void *arg)
 						&ctx->svars[events[i].data.sockid]);
 
 			} else if (events[i].events & MTCP_EPOLLIN) {
+				printf("Got an EPOLLIN!\n");
 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
 						&ctx->svars[events[i].data.sockid]);
 
 				if (ret == 0) {
+					printf("Got ret ==0!\n");
 					/* connection closed by remote host */
 					CloseConnection(ctx, events[i].data.sockid, 
 							&ctx->svars[events[i].data.sockid]);
 				} else if (ret < 0) {
+					printf("Got ret <0!\n");
 					/* if not EAGAIN, it's an error */
 					if (errno != EAGAIN) {
+						printf("Got EAGAIN!\n");
 						CloseConnection(ctx, events[i].data.sockid, 
 								&ctx->svars[events[i].data.sockid]);
 					}
@@ -512,7 +534,9 @@ RunServerThread(void *arg)
 		/* if do_accept flag is set, accept connections */
 		if (do_accept) {
 			while (1) {
+				printf("Connection Going to get Accepted!\n");
 				ret = AcceptConnection(ctx, listener);
+				printf("Connection Accepted!\n");
 				if (ret < 0)
 					break;
 			}
