@@ -149,7 +149,36 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
 		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
 
-	} else {
+	} else if (flags & TCP_FLAG_ACK){
+		/* MPTCP MP_CAPABLE option */
+        tcpopt[i++] = TCP_OPT_MPTCP;
+		// Length
+		tcpopt[i++] = 20;
+		// MP_CAPABLE Option
+        tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
+        tcpopt[i++] = TCP_MPTCP_VERSION;
+
+		//Send a 64 bit value (key) in tcp options (senders)
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00; 
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x10;
+
+		// Send another 64 bit value (key) (recievers)
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00; 
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x10;
+
+	}else {
 
 #if TCP_OPT_TIMESTAMP_ENABLED
 		tcpopt[i++] = TCP_OPT_NOP;
