@@ -1,0 +1,4 @@
+1. when doing the handshake doesnt check if MP_CAPABLE is there or not, just assumes it is there.
+    this is wrong, because the other side might not support MP_CAPABLE and thus not send it.
+
+2. 
