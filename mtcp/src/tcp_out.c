@@ -8,6 +8,7 @@
 #include "eventpoll.h"
 #include "timer.h"
 #include "debug.h"
+#include "mptcp.h"
 #if RATE_LIMIT_ENABLED || PACING_ENABLED
 #include "pacing.h"
 #endif
@@ -86,6 +87,18 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = TCP_OPT_MSS_LEN;
 		tcpopt[i++] = mss >> 8;
 		tcpopt[i++] = mss % 256;
+
+		/* MPTCP MP_CAPABLE option (add this block) */
+        tcpopt[i++] = TCP_OPT_MPTCP;
+        tcpopt[i++] = TCP_OPT_MPTCP_LEN;
+        // MP_CAPABLE Option
+        tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
+        tcpopt[i++] = TCP_MPTCP_VERSION;
+
+		// In version 1 no need to send with SYN
+        // memcpy(&tcpopt[i], &cur_stream->sndvar->mptcp_key, sizeof(cur_stream->sndvar->mptcp_key));
+        // i += sizeof(cur_stream->sndvar->mptcp_key);
+        /* End of MP_CAPABLE Option */
 
 		/* SACK permit */
 #if TCP_OPT_SACK_ENABLED
