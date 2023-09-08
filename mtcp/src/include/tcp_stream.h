@@ -184,8 +184,8 @@ typedef struct tcp_stream
 	uint8_t need_wnd_adv;
 	int16_t on_rto_idx;
 
-	struct mptcp_tcp_sock *mptcp_sock;
-	struct mptcp_cb *mptcp_cb;
+	mptcp_tcp_sock *mptcp_sock;
+	mptcp_cb *mptcp_cb;
 
 	uint16_t on_timeout_list:1, 
 			on_rcv_br_list:1, 
