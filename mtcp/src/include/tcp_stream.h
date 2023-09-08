@@ -10,6 +10,8 @@
 #include "pacing.h"
 #endif
 
+#include "mptcp.h"
+
 struct rtm_stat
 {
 	uint32_t tdp_ack_cnt;
@@ -181,6 +183,9 @@ typedef struct tcp_stream
 	uint8_t is_bound_addr;
 	uint8_t need_wnd_adv;
 	int16_t on_rto_idx;
+
+	struct mptcp_tcp_sock *mptcp_sock;
+	struct mptcp_cb *mptcp_cb;
 
 	uint16_t on_timeout_list:1, 
 			on_rcv_br_list:1, 

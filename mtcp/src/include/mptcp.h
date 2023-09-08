@@ -16,6 +16,7 @@
 #define TCP_OPT_MPTCP 30 // You can choose an appropriate value not conflicting with existing TCP options
 #define TCP_OPT_MPTCP_LEN 4 // You can choose an appropriate value not conflicting with existing TCP options
 #define TCP_MPTCP_SUBTYPE_CAPABLE 1
+#define TCP_MPTCP_SUBTYPE_JOIN 2
 #define TCP_MPTCP_VERSION 1
 
 struct mptcp_tcp_sock{
