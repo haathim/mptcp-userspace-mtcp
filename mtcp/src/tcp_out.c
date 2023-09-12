@@ -78,6 +78,87 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 {
 	int i = 0;
 
+	// code for adding MP_JOIN for SYN
+	if(false){
+		tcpopt[i++] = TCP_OPT_MPTCP;
+		tcpopt[i++] = 12;
+		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0);
+		// Here need to send the Address Id, going to put 1 assuming each host has only one additional address
+		// the initial subflow will be Id of 0
+		tcpopt[i++] = 1;
+
+		// recv token
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x01;
+
+		// send random number
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x01;
+
+	}
+
+	// code for MP_JOIN SYN/ACK
+	if(false){
+		tcpopt[i++] = TCP_OPT_MPTCP;
+		tcpopt[i++] = 12;
+		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0);
+		// Here need to send the Address Id, going to put 1 assuming each host has only one additional address
+		// the initial subflow will be Id of 0
+		tcpopt[i++] = 1;
+
+		// senders truncated HMAC (64 bits)
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x01;
+
+		// send random number
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x01;
+	}
+
+	// code for MP_JOIN ACK
+	if(false){
+		tcpopt[i++] = TCP_OPT_MPTCP;
+		tcpopt[i++] = 12;
+		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0); //reserved 12 bits must be 0
+
+		// senders trnuncated HMAC (160 bits)
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x00;
+		tcpopt[i++] = 0x10;
+
+	}
 
 
 	if (flags & TCP_FLAG_SYN) {
@@ -104,8 +185,9 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 			tcpopt[i++] = 4;
 		}
         // MP_CAPABLE Option
-        tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
-        tcpopt[i++] = TCP_MPTCP_VERSION;
+        tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		// The A-H flags
+		tcpopt[i++] = 0;
 
 		// SYN/ACK
 		if(flags & TCP_FLAG_ACK){

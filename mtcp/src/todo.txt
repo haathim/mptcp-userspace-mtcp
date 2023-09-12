@@ -1,4 +1,12 @@
 1. when doing the handshake doesnt check if MP_CAPABLE is there or not, just assumes it is there.
     this is wrong, because the other side might not support MP_CAPABLE and thus not send it.
 
-2. 
+2. Assume both are going to use v1
+3. Assume both use the same key (with value 2)
+4. Can we assume that each host will have only connection (need to index connections by hash of key?) ?
+5. I didnt check MPTCP flags (2nd octet)
+6. Exhanges of crypto algorithm not doesnt
+7. All the token and keys and HMACs are harcoded as 2 
+8. Didnt store the Address ID mappings (Just used aadd id 1 for all refer point 4)
+9. WHat about option lenght when adding all these options?
+10. 
