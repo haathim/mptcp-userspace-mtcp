@@ -21,7 +21,7 @@
 
 /*----------------------------------------------------------------------------*/
 static inline uint16_t
-CalculateOptionLength(uint8_t flags)
+CalculateOptionLength(uint8_t flags, uint8_t mptcp_option)
 {
 	uint16_t optlen = 0;
 
@@ -43,6 +43,8 @@ CalculateOptionLength(uint8_t flags)
 
 		optlen += TCP_OPT_WSCALE_LEN + 1;
 
+
+
 	} else {
 
 #if TCP_OPT_TIMESTAMP_ENABLED
@@ -54,6 +56,77 @@ CalculateOptionLength(uint8_t flags)
 			optlen += TCP_OPT_SACK_LEN + 2;
 		}
 #endif
+	}
+
+	assert(optlen % 4 == 0);
+
+	return optlen;
+}
+/*----------------------------------------------------------------------------*/
+static inline uint16_t
+CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option)
+{
+	uint16_t optlen = 0;
+
+	if (flags & TCP_FLAG_SYN) {
+		optlen += TCP_OPT_MSS_LEN;
+#if TCP_OPT_SACK_ENABLED
+		optlen += TCP_OPT_SACK_PERMIT_LEN;
+#if !TCP_OPT_TIMESTAMP_ENABLED
+		optlen += 2;  // insert NOP padding
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+#endif /* TCP_OPT_SACK_ENABLED */
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN;
+#if !TCP_OPT_SACK_ENABLED
+		optlen += 2;  // insert NOP padding
+#endif /* TCP_OPT_SACK_ENABLED */
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+		optlen += TCP_OPT_WSCALE_LEN + 1;
+
+		if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+			// Add the length of the MP_CAPABLE option
+			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
+			// If its a SYN/ACK
+			if (flags & TCP_FLAG_ACK){
+				optlen += 8;
+			}
+		}
+
+		if (mptcp_option & MPTCP_OPTION_JOIN) {
+			// Add the length of the MP_JOIN option
+			optlen += MPTCP_OPT_JOIN_SYN_LEN;
+			// If its a SYN/ACK
+			if (flags & TCP_FLAG_ACK){
+				optlen += 4;
+			}
+		}
+
+	} else {
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+#endif
+
+#if TCP_OPT_SACK_ENABLED
+		if (flags & TCP_FLAG_SACK) {
+			optlen += TCP_OPT_SACK_LEN + 2;
+		}
+#endif
+		// If its a ACK
+		if(flags & TCP_FLAG_ACK){
+			if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+				// Add the length of the MP_CAPABLE option
+				optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
+			}
+
+			if (mptcp_option & MPTCP_OPTION_JOIN) {
+					// Add the length of the MP_JOIN option
+					optlen += MPTCP_OPT_JOIN_ACK_LEN;
+			}
+		}
 	}
 
 	assert(optlen % 4 == 0);

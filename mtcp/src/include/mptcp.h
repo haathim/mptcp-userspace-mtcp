@@ -19,6 +19,15 @@
 #define TCP_MPTCP_SUBTYPE_CAPABLE 1
 #define TCP_MPTCP_SUBTYPE_JOIN 2
 #define TCP_MPTCP_VERSION 1
+#define MPTCP_OPTION_CAPABLE 1
+#define MPTCP_OPTION_JOIN 2
+#define MPTCP_OPT_CAPABLE_SYN_LEN 4
+#define MPTCP_OPT_CAPABLE_SYNACK_LEN 12
+#define MPTCP_OPT_CAPABLE_ACK_LEN 20
+#define MPTCP_OPT_JOIN_SYN_LEN  12
+#define MPTCP_OPT_JOIN_SYNACK_LEN 16
+#define MPTCP_OPT_JOIN_ACK_LEN 24
+
 
 typedef struct mptcp_tcp_sock{
     // these are just some random stuff i dont know why they are used
