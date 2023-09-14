@@ -20,7 +20,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
 
 int
 SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
-		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen);
+		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen, uint8_t isControlMsg);
 
 extern inline int 
 WriteTCPControlList(mtcp_manager_t mtcp, 

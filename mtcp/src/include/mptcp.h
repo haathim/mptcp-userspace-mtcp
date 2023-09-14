@@ -2,7 +2,7 @@
 #define MPTCP_H
 
 #include <stdint.h>
-#include <tcp_stream.h>
+#include "tcp_stream.h"
 
 // Constants and macros
 // #define MPTCP_PORT 860  // You can choose an appropriate port number
@@ -28,6 +28,8 @@
 #define MPTCP_OPT_JOIN_SYNACK_LEN 16
 #define MPTCP_OPT_JOIN_ACK_LEN 24
 
+// forward declaration (mptcp_tcp_sock has mptcp_cb as a field)
+typedef struct mptcp_cb mptcp_cb;
 
 typedef struct mptcp_tcp_sock{
     // these are just some random stuff i dont know why they are used
@@ -50,7 +52,7 @@ typedef struct mptcp_tcp_sock{
 
 } mptcp_tcp_sock;
 
-typedef struct mptcp_cb{
+struct mptcp_cb{
     // these are just some random stuff i dont know why they are used
     mptcp_tcp_sock *mptcp_sock;
     uint8_t mptcp_enabled;
@@ -67,9 +69,9 @@ typedef struct mptcp_cb{
     uint64_t mptcp_data_len;
     uint64_t mptcp_data_fin_len;
     uint64_t mptcp_data_fin;
-
-    tcp_stream *tcp_streams[10];
-} mptcp_cb;
+    // why do I have to put struct in front of tcp_stream (else getting compiler error)
+    struct tcp_stream *tcp_streams[10];
+};
 
 
 

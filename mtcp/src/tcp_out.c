@@ -21,7 +21,7 @@
 
 /*----------------------------------------------------------------------------*/
 static inline uint16_t
-CalculateOptionLength(uint8_t flags, uint8_t mptcp_option)
+CalculateOptionLength(uint8_t flags)
 {
 	uint16_t optlen = 0;
 
@@ -147,92 +147,9 @@ GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
 /*----------------------------------------------------------------------------*/
 static inline void
 GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
-		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
+		uint8_t flags, uint8_t *tcpopt, uint16_t optlen, uint8_t isControlMsg, uint8_t mptcp_option)
 {
 	int i = 0;
-
-	// code for adding MP_JOIN for SYN
-	if(false){
-		tcpopt[i++] = TCP_OPT_MPTCP;
-		tcpopt[i++] = 12;
-		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0);
-		// Here need to send the Address Id, going to put 1 assuming each host has only one additional address
-		// the initial subflow will be Id of 0
-		tcpopt[i++] = 1;
-
-		// recv token
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x01;
-
-		// send random number
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x01;
-
-	}
-
-	// code for MP_JOIN SYN/ACK
-	if(false){
-		tcpopt[i++] = TCP_OPT_MPTCP;
-		tcpopt[i++] = 12;
-		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0);
-		// Here need to send the Address Id, going to put 1 assuming each host has only one additional address
-		// the initial subflow will be Id of 0
-		tcpopt[i++] = 1;
-
-		// senders truncated HMAC (64 bits)
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x01;
-
-		// send random number
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x01;
-	}
-
-	// code for MP_JOIN ACK
-	if(false){
-		tcpopt[i++] = TCP_OPT_MPTCP;
-		tcpopt[i++] = 12;
-		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0); //reserved 12 bits must be 0
-
-		// senders trnuncated HMAC (160 bits)
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x10;
-
-	}
-
 
 	if (flags & TCP_FLAG_SYN) {
 		uint16_t mss;
@@ -246,37 +163,84 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = mss % 256;
 
 
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
 
-		/* MPTCP MP_CAPABLE option */
-        tcpopt[i++] = TCP_OPT_MPTCP;
+			/* MPTCP MP_CAPABLE option */
+			tcpopt[i++] = TCP_OPT_MPTCP;
 
-		if(flags & TCP_FLAG_ACK){
+			if(flags & TCP_FLAG_ACK){
+				// SYN/ACK
+				tcpopt[i++] = 12;
+			}else{
+				// SYN
+				tcpopt[i++] = 4;
+			}
+			// MP_CAPABLE Option
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+			// The A-H flags
+			tcpopt[i++] = 0;
+
 			// SYN/ACK
-        	tcpopt[i++] = 12;
-		}else{
-			// SYN
-			tcpopt[i++] = 4;
+			if(flags & TCP_FLAG_ACK){
+				//Send a 64 bit value (key) in tcp options
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00; 
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10; 
+			}
+
+			/* End of MP_CAPABLE Option */
+		}else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP MP_JOIN option */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			if(flags & TCP_FLAG_ACK){
+				// SYN/ACK
+				tcpopt[i++] = 16;
+			}else{
+				// SYN
+				tcpopt[i++] = 12;
+			}
+			// Below is for both SYN & SYN/ACK
+				// MP_JOIN Subtype and rsv and B to 0
+				tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4 | 0));
+				// Address Id (set to 1 hard coded (assuming only one additoinal subflow used))
+				tcpopt[i++] = 1;
+
+			if(flags & TCP_FLAG_ACK){
+				// SYN/ACL
+				// 64 bit Senders Trincated HMAC
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10;
+			}else{
+				// SYN
+				//32 bit recv token
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10;
+			}
+			
+			// Senders Random Number in both SYN & SYN/ACK
+			//32 bit random number
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x10;
+
+			/* End of MP_JOIN Option */
 		}
-        // MP_CAPABLE Option
-        tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		// The A-H flags
-		tcpopt[i++] = 0;
-
-		// SYN/ACK
-		if(flags & TCP_FLAG_ACK){
-			//Send a 64 bit value (key) in tcp options
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x00; 
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x10; 
-		}
-
-        /* End of MP_CAPABLE Option */
-
 		/* SACK permit */
 #if TCP_OPT_SACK_ENABLED
 #if !TCP_OPT_TIMESTAMP_ENABLED
@@ -305,34 +269,67 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
 
 	} else if (flags & TCP_FLAG_ACK){
-		/* MPTCP MP_CAPABLE option */
-        tcpopt[i++] = TCP_OPT_MPTCP;
-		// Length
-		tcpopt[i++] = 20;
-		// MP_CAPABLE Option
-        tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
-        tcpopt[i++] = TCP_MPTCP_VERSION;
+		// When only ACK must check if its a control packet first
+		if(isControlMsg){
+			if(mptcp_option == MPTCP_OPTION_CAPABLE){
+				/* MPTCP MP_CAPABLE option */
+				tcpopt[i++] = TCP_OPT_MPTCP;
+				// Length
+				tcpopt[i++] = 20;
+				// MP_CAPABLE Option
+				tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
+				tcpopt[i++] = TCP_MPTCP_VERSION;
 
-		//Send a 64 bit value (key) in tcp options (senders)
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00; 
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x10;
+				//Send a 64 bit value (key) in tcp options (senders)
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00; 
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10;
 
-		// Send another 64 bit value (key) (recievers)
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00; 
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x00;
-		tcpopt[i++] = 0x10;
+				// Send another 64 bit value (key) (recievers)
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00; 
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10;
+			}else if(mptcp_option == MPTCP_OPTION_JOIN){
+				tcpopt[i++] = TCP_OPT_MPTCP;
+				tcpopt[i++] = 12;
+				tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0); //reserved 12 bits must be 0
 
+				// senders trnuncated HMAC (160 bits)
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x00;
+				tcpopt[i++] = 0x10;
+			}
+		}
 	}else {
 
 #if TCP_OPT_TIMESTAMP_ENABLED
@@ -441,7 +438,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
 /*----------------------------------------------------------------------------*/
 int
 SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
-		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen)
+		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen, uint8_t isControlMsg)
 {
 	struct tcphdr *tcph;
 	uint16_t optlen;
@@ -449,7 +446,20 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	uint32_t window32 = 0;
 	int rc = -1;
 
-	optlen = CalculateOptionLength(flags);
+	uint8_t mptcp_option = MPTCP_OPTION_CAPABLE;
+
+	// first check if sending MP_CAPABLE OR MP_JOIN
+	if(cur_stream->socket->stream != (struct tcp_stream*)(&cur_stream)){
+		// this is not the first subflow
+		mptcp_option = MPTCP_OPTION_JOIN;
+	}
+
+	if(isControlMsg){
+		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option);
+	}else{
+		optlen = CalculateOptionLength(flags);
+	}
+
 	if (payloadlen + optlen > cur_stream->sndvar->mss) {
 		TRACE_ERROR("Payload size exceeds MSS\n");
 		return ERROR;
@@ -528,7 +538,7 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	}
 
 	GenerateTCPOptions(cur_stream, cur_ts, flags, 
-			(uint8_t *)tcph + TCP_HEADER_LEN, optlen);
+			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option);
 	
 	tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
 	// copy payload if exist
@@ -808,7 +818,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
                 }
 #endif
 		if ((sndlen = SendTCPPacket(mtcp, cur_stream, cur_ts,
-					    TCP_FLAG_ACK, data, pkt_len)) < 0) {
+					    TCP_FLAG_ACK, data, pkt_len, 0)) < 0) {
 			/* there is no available tx buf */
 			packets = -3;
 			goto out;
@@ -835,21 +845,21 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 
 	if (cur_stream->state == TCP_ST_SYN_SENT) {
 		/* Send SYN here */
-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_SYN, NULL, 0);
+		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_SYN, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_SYN_RCVD) {
 		/* Send SYN/ACK here */
 		cur_stream->snd_nxt = sndvar->iss;
 		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-				TCP_FLAG_SYN | TCP_FLAG_ACK, NULL, 0);
+				TCP_FLAG_SYN | TCP_FLAG_ACK, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_ESTABLISHED) {
 		/* Send ACK here */
-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_CLOSE_WAIT) {
 		/* Send ACK for the FIN here */
-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_LAST_ACK) {
 		/* if it is on ack_list, send it after sending ack */
@@ -858,7 +868,7 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 		} else {
 			/* Send FIN/ACK here */
 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
 		}
 	} else if (cur_stream->state == TCP_ST_FIN_WAIT_1) {
 		/* if it is on ack_list, send it after sending ack */
@@ -867,32 +877,32 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 		} else {
 			/* Send FIN/ACK here */
 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
 		}
 
 	} else if (cur_stream->state == TCP_ST_FIN_WAIT_2) {
 		/* Send ACK here */
-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_CLOSING) {
 		if (sndvar->is_fin_sent) {
 			/* if the sequence is for FIN, send FIN */
 			if (cur_stream->snd_nxt == sndvar->fss) {
 				ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-						TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+						TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
 			} else {
 				ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-						TCP_FLAG_ACK, NULL, 0);
+						TCP_FLAG_ACK, NULL, 0, 1);
 			}
 		} else {
 			/* if FIN is not sent, send fin with ack */
 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
 		}
 
 	} else if (cur_stream->state == TCP_ST_TIME_WAIT) {
 		/* Send ACK here */
-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
 
 	} else if (cur_stream->state == TCP_ST_CLOSED) {
 		/* Send RST here */
@@ -902,7 +912,7 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
 		if (sndvar->on_send_list || sndvar->on_ack_list) {
 			ret = -1;
 		} else {
-			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_RST, NULL, 0);
+			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_RST, NULL, 0, 1);
 			if (ret >= 0) {
 				DestroyTCPStream(mtcp, cur_stream);
 			}
@@ -1113,7 +1123,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
 				/* send the queued ack packets */
 				while (cur_stream->sndvar->ack_cnt > 0) {
 					ret = SendTCPPacket(mtcp, cur_stream, 
-							cur_ts, TCP_FLAG_ACK, NULL, 0);
+							cur_ts, TCP_FLAG_ACK, NULL, 0, 0);
 					if (ret < 0) {
 						/* since there is no available write buffer, break */
 						break;
@@ -1125,7 +1135,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
 				if (cur_stream->sndvar->is_wack) {
 					cur_stream->sndvar->is_wack = FALSE;
 					ret = SendTCPPacket(mtcp, cur_stream, 
-							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0);
+							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0, 0);
 					if (ret < 0) {
 						/* since there is no available write buffer, break */
 						cur_stream->sndvar->is_wack = TRUE;

@@ -770,9 +770,9 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 {
 
 	// creating the structures in case of MP_CAPABLE reply
-	tcp_stream first_subflow = *cur_stream;
-	tcp_stream *meta_sock; 
-	int ret;
+	// tcp_stream first_subflow = *cur_stream;
+	// tcp_stream *meta_sock; 
+	// int ret;
 
 	/* when active open */
 	if (tcph->ack) {
@@ -808,22 +808,22 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 			// check if have MP_CAPABLE reply
 			// for now assuming have
-			meta_sock = cur_stream;
+			// meta_sock = cur_stream;
 			// now make cur_stream point to the firts subflow (which is not yet in the tcp table)
-			cur_stream = &first_subflow_tcp_stream;
-			StreamHTRemove(mtcp->tcp_flow_table, meta_sock);
-			ret = StreamHTInsert(mtcp->tcp_flow_table, cur_stream);
-			if(true){
-				// allocating all the data structures
+			// cur_stream = &first_subflow_tcp_stream;
+			// StreamHTRemove(mtcp->tcp_flow_table, meta_sock);
+			// ret = StreamHTInsert(mtcp->tcp_flow_table, cur_stream);
+			// if(true){
+			// 	// allocating all the data structures
 
-				meta_sock->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
-				meta_sock->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
+			// 	meta_sock->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
+			// 	meta_sock->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
 
-				cur_stream->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
-				cur_stream->mptcp_sock->mptcp_cb = meta_sock->mptcp_cb;
+			// 	cur_stream->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
+			// 	cur_stream->mptcp_sock->mptcp_cb = meta_sock->mptcp_cb;
 
-				meta_sock->mptcp_cb->tcp_streams[0] = cur_stream;
-			}
+			// 	meta_sock->mptcp_cb->tcp_streams[0] = cur_stream;
+			// }
 			
 			int ret = HandleActiveOpen(mtcp, 
 					cur_stream, cur_ts, tcph, seq, ack_seq, window);
