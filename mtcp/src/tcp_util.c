@@ -58,6 +58,47 @@ ParseTCPOptions(tcp_stream *cur_stream,
 	}
 }
 /*---------------------------------------------------------------------------*/
+uint8_t 
+ParseMPTCPOptions(tcp_stream *cur_stream, 
+		uint32_t cur_ts, uint8_t *tcpopt, int len)
+{
+	int i;
+	unsigned int opt, optlen;
+
+	for (i = 0; i < len; ) {
+		// why i++ here? Because after using the value only it will increment, so initially it will be,
+		// opt = *(tcpopt + 0) = *tcpopt
+		opt = *(tcpopt + i++);
+		
+		if (opt == TCP_OPT_END) {	// end of option field
+			break;
+		} else if (opt == TCP_OPT_NOP) {	// no option
+			continue;
+		} else {
+
+			optlen = *(tcpopt + i++);
+			if (i + optlen - 2 > len) {
+				break;
+			}
+
+			if (opt == MPTCP_OPTION_CAPABLE) {
+				// Check MP_CAPABLE
+				return MPTCP_OPTION_CAPABLE;
+
+			} else if (opt == MPTCP_OPTION_JOIN) {
+				// Check MP_JOIN
+				return MPTCP_OPTION_JOIN;
+
+			} else {
+				// Check No MPTCP option
+				i += optlen - 2;
+			}
+		}
+	}
+	//  No MPTCP options
+	return 0;
+}
+/*---------------------------------------------------------------------------*/
 inline int  
 ParseTCPTimestamp(tcp_stream *cur_stream, 
 		struct tcp_timestamp *ts, uint8_t *tcpopt, int len)

@@ -25,6 +25,10 @@ struct tcp_timestamp
 void ParseTCPOptions(tcp_stream *cur_stream,
 		        uint32_t cur_ts, uint8_t *tcpopt, int len);
 
+uint8_t 
+ParseMPTCPOptions(tcp_stream *cur_stream, 
+		uint32_t cur_ts, uint8_t *tcpopt, int len);
+
 extern inline int
 ParseTCPTimestamp(tcp_stream *cur_stream,
 		        struct tcp_timestamp *ts, uint8_t *tcpopt, int len);

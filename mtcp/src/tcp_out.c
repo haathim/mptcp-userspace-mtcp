@@ -454,6 +454,8 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 		mptcp_option = MPTCP_OPTION_JOIN;
 	}
 
+	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
+	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
 	if(isControlMsg){
 		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option);
 	}else{

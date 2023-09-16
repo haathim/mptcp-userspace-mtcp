@@ -11,6 +11,7 @@
 #include "timer.h"
 #include "ip_in.h"
 #include "clock.h"
+#include "mptcp.h"
 #if USE_CCP
 #include "ccp.h"
 #endif
@@ -750,6 +751,41 @@ static inline void
 Handle_TCP_ST_LISTEN (mtcp_manager_t mtcp, uint32_t cur_ts, 
 		tcp_stream* cur_stream, struct tcphdr* tcph) {
 	
+	// Have to check for MP options here
+	// use something like ParseMPTCP options
+	uint8_t mptcp_option = ParseMPTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+	if (mptcp_option == MPTCP_OPTION_CAPABLE) {
+		cur_stream->isReceivedMPCapableSYN = 1;
+		// create the structures
+		// tcp_stream first_subflow = *cur_stream;
+		// tcp_stream *meta_sock; 
+		// int ret;
+
+		// meta_sock = cur_stream;
+		// now make cur_stream point to the firts subflow (which is not yet in the tcp table)
+		// cur_stream = &first_subflow_tcp_stream;
+		// StreamHTRemove(mtcp->tcp_flow_table, meta_sock);
+		// ret = StreamHTInsert(mtcp->tcp_flow_table, cur_stream);
+		// if(true){
+		// 	// allocating all the data structures
+
+		// 	meta_sock->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
+		// 	meta_sock->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
+
+		// 	cur_stream->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
+		// 	cur_stream->mptcp_sock->mptcp_cb = meta_sock->mptcp_cb;
+
+		// 	meta_sock->mptcp_cb->tcp_streams[0] = cur_stream;
+		// }
+		// cur_stream->mptcp_cb->meta_sock = meta_sock;
+		// cur_stream->mptcp_sock->meta_sock = meta_sock;
+		// cur_stream->mptcp_sock->meta_sock->mptcp_sock = cur_stream->mptcp_sock;
+		// cur_stream->mptcp_sock->meta_sock->mptcp_cb = cur_stream->mptcp_cb;
+		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock = cur_stream->mptcp_sock->meta_sock;
+		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_sock = cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock;
+		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_cb = cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_cb
+	}
+
 	if (tcph->syn) {
 		if (cur_stream->state == TCP_ST_LISTEN)
 			cur_stream->rcv_nxt++;
