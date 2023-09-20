@@ -197,7 +197,7 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		}else if(mptcp_option == MPTCP_OPTION_JOIN){
 
 			/* MPTCP MP_JOIN option */
-			tcpopt[i++] = TCP_OPT_MPTCP;
+			tcpopt[i++] = TCP_OPT_MPTCP; //this one??
 
 			if(flags & TCP_FLAG_ACK){
 				// SYN/ACK
@@ -273,7 +273,7 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		if(isControlMsg){
 			if(mptcp_option == MPTCP_OPTION_CAPABLE){
 				/* MPTCP MP_CAPABLE option */
-				tcpopt[i++] = TCP_OPT_MPTCP;
+				tcpopt[i++] = TCP_OPT_MPTCP; //not this
 				// Length
 				tcpopt[i++] = 20;
 				// MP_CAPABLE Option
@@ -344,6 +344,158 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 			// i += GenerateSACKOption(cur_stream, tcpopt + i);
 		}
 #endif
+	}
+
+	if (flags == TCP_FLAG_SYN){
+
+		uint16_t mss;
+
+		
+		/* MSS option */
+		mss = cur_stream->sndvar->mss;
+		tcpopt[i++] = TCP_OPT_MSS;
+		tcpopt[i++] = TCP_OPT_MSS_LEN;
+		tcpopt[i++] = mss >> 8;
+		tcpopt[i++] = mss % 256;
+
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+
+	}
+	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
+
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+		
+
+	}
+	else if(flags == TCP_FLAG_ACK){
+
+
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+		
+		
+	}
+	else{
+
+
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+		
+		
 	}
 
 	assert (i == optlen);
@@ -449,10 +601,10 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	uint8_t mptcp_option = MPTCP_OPTION_CAPABLE;
 
 	// first check if sending MP_CAPABLE OR MP_JOIN
-	if(cur_stream->socket->stream != (struct tcp_stream*)(&cur_stream)){
-		// this is not the first subflow
-		mptcp_option = MPTCP_OPTION_JOIN;
-	}
+	// if(cur_stream->socket->stream != (struct tcp_stream*)(&cur_stream)){
+	// 	// this is not the first subflow
+	// 	mptcp_option = MPTCP_OPTION_JOIN;
+	// }
 
 	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
 	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
