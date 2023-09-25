@@ -1498,6 +1498,11 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		return -1;
 	}
 	
+	// An idea: Here check if the socket streams points to a valid mpcb
+	// If so assign cur_stream as the return of mpcb->scheduler
+	// Next is how to add the DSS option to the packet
+
+
 	cur_stream = socket->stream;
 	if (!cur_stream || 
 			!(cur_stream->state == TCP_ST_ESTABLISHED || 

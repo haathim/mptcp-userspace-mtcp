@@ -9,6 +9,7 @@
 #include "timer.h"
 #include "debug.h"
 #include "mptcp.h"
+#include <endian.h>
 #if RATE_LIMIT_ENABLED || PACING_ENABLED
 #include "pacing.h"
 #endif
@@ -64,11 +65,77 @@ CalculateOptionLength(uint8_t flags)
 }
 /*----------------------------------------------------------------------------*/
 static inline uint16_t
-CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option)
+CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payloadlen)
 {
 	uint16_t optlen = 0;
 
-	if (flags & TCP_FLAG_SYN) {
+// 	if (flags & TCP_FLAG_SYN) {
+// 		optlen += TCP_OPT_MSS_LEN;
+// #if TCP_OPT_SACK_ENABLED
+// 		optlen += TCP_OPT_SACK_PERMIT_LEN;
+// #if !TCP_OPT_TIMESTAMP_ENABLED
+// 		optlen += 2;  // insert NOP padding
+// #endif /* TCP_OPT_TIMESTAMP_ENABLED */
+// #endif /* TCP_OPT_SACK_ENABLED */
+
+// #if TCP_OPT_TIMESTAMP_ENABLED
+// 		optlen += TCP_OPT_TIMESTAMP_LEN;
+// #if !TCP_OPT_SACK_ENABLED
+// 		optlen += 2;  // insert NOP padding
+// #endif /* TCP_OPT_SACK_ENABLED */
+// #endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+// 		optlen += TCP_OPT_WSCALE_LEN + 1;
+
+// 		if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+// 			// Add the length of the MP_CAPABLE option
+// 			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
+// 			// // If its a SYN/ACK
+// 			// if (flags & TCP_FLAG_ACK){
+// 			// 	optlen += 8;
+// 			// }
+// 		}
+
+// 		// if (mptcp_option & MPTCP_OPTION_JOIN) {
+// 		// 	// Add the length of the MP_JOIN option
+// 		// 	optlen += MPTCP_OPT_JOIN_SYN_LEN;
+// 		// 	// // If its a SYN/ACK
+// 		// 	// if (flags & TCP_FLAG_ACK){
+// 		// 	// 	optlen += 4;
+// 		// 	// }
+// 		// }
+
+// 	} else {
+
+// #if TCP_OPT_TIMESTAMP_ENABLED
+// 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+// #endif
+
+// #if TCP_OPT_SACK_ENABLED
+// 		if (flags & TCP_FLAG_SACK) {
+// 			optlen += TCP_OPT_SACK_LEN + 2;
+// 		}
+// #endif
+// 		// If its a ACK
+// 		if(flags & TCP_FLAG_ACK){
+// 			if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+// 				// Add the length of the MP_CAPABLE option
+// 				optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
+// 			}
+
+// 			if (mptcp_option & MPTCP_OPTION_JOIN) {
+// 					// Add the length of the MP_JOIN option
+// 					optlen += MPTCP_OPT_JOIN_ACK_LEN;
+// 			}
+// 		}
+// 	}
+
+
+	// ----------------------------------------------------------------
+
+	if(flags == TCP_FLAG_SYN){
+
+
 		optlen += TCP_OPT_MSS_LEN;
 #if TCP_OPT_SACK_ENABLED
 		optlen += TCP_OPT_SACK_PERMIT_LEN;
@@ -86,25 +153,50 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option)
 
 		optlen += TCP_OPT_WSCALE_LEN + 1;
 
-		if (mptcp_option & MPTCP_OPTION_CAPABLE) {
-			// Add the length of the MP_CAPABLE option
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
 			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
-			// If its a SYN/ACK
-			if (flags & TCP_FLAG_ACK){
-				optlen += 8;
-			}
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+			
+		}
+		else{
+
+		}
+	}
+	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
+
+		optlen += TCP_OPT_MSS_LEN;
+#if TCP_OPT_SACK_ENABLED
+		optlen += TCP_OPT_SACK_PERMIT_LEN;
+#if !TCP_OPT_TIMESTAMP_ENABLED
+		optlen += 2;  // insert NOP padding
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+#endif /* TCP_OPT_SACK_ENABLED */
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN;
+#if !TCP_OPT_SACK_ENABLED
+		optlen += 2;  // insert NOP padding
+#endif /* TCP_OPT_SACK_ENABLED */
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+		optlen += TCP_OPT_WSCALE_LEN + 1;
+
+		optlen += TCP_OPT_WSCALE_LEN + 1;
+
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+			optlen += MPTCP_OPT_CAPABLE_SYNACK_LEN;
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+			
+		}
+		else{
+
 		}
 
-		if (mptcp_option & MPTCP_OPTION_JOIN) {
-			// Add the length of the MP_JOIN option
-			optlen += MPTCP_OPT_JOIN_SYN_LEN;
-			// If its a SYN/ACK
-			if (flags & TCP_FLAG_ACK){
-				optlen += 4;
-			}
-		}
-
-	} else {
+	}
+	else if (flags == TCP_FLAG_ACK && payloadlen == 0)
+	{
 
 #if TCP_OPT_TIMESTAMP_ENABLED
 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
@@ -115,18 +207,32 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option)
 			optlen += TCP_OPT_SACK_LEN + 2;
 		}
 #endif
-		// If its a ACK
-		if(flags & TCP_FLAG_ACK){
-			if (mptcp_option & MPTCP_OPTION_CAPABLE) {
-				// Add the length of the MP_CAPABLE option
-				optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
-			}
 
-			if (mptcp_option & MPTCP_OPTION_JOIN) {
-					// Add the length of the MP_JOIN option
-					optlen += MPTCP_OPT_JOIN_ACK_LEN;
-			}
+		if (mptcp_option == MPTCP_OPTION_CAPABLE) {
+			optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
+
+			// For the DATA ACK sent along with this
+			optlen += 8;
 		}
+
+
+	}
+	else{
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+#endif
+
+#if TCP_OPT_SACK_ENABLED
+		if (flags & TCP_FLAG_SACK) {
+			optlen += TCP_OPT_SACK_LEN + 2;
+		}
+#endif
+
+	}
+	
+	if(payloadlen > 0){
+		optlen += 20;
 	}
 
 	assert(optlen % 4 == 0);
@@ -147,11 +253,12 @@ GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
 /*----------------------------------------------------------------------------*/
 static inline void
 GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
-		uint8_t flags, uint8_t *tcpopt, uint16_t optlen, uint8_t isControlMsg, uint8_t mptcp_option)
+		uint8_t flags, uint8_t *tcpopt, uint16_t optlen, uint8_t isControlMsg, uint8_t mptcp_option, uint16_t payloadlen)
 {
 	int i = 0;
 
-	if (flags & TCP_FLAG_SYN) {
+	if (flags == TCP_FLAG_SYN){
+
 		uint16_t mss;
 
 		
@@ -162,85 +269,51 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = mss >> 8;
 		tcpopt[i++] = mss % 256;
 
-
+		// MPTCP
 		if(mptcp_option == MPTCP_OPTION_CAPABLE){
 
-			/* MPTCP MP_CAPABLE option */
+			/* MPTCP Option Kind */
 			tcpopt[i++] = TCP_OPT_MPTCP;
 
-			if(flags & TCP_FLAG_ACK){
-				// SYN/ACK
-				tcpopt[i++] = 12;
-			}else{
-				// SYN
-				tcpopt[i++] = 4;
-			}
-			// MP_CAPABLE Option
+			// Length
+			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYN_LEN;
+
+			// MPTCP MP_CAPABLE Subtype
 			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-			// The A-H flags
-			tcpopt[i++] = 0;
+		
+			// Add Checksum required & HMAC-SHA1 (A, H set) -> 0x81
+			// Later i changed to no Checksum (Because DSS have to do later)
+			// TODO: (above)
+			tcpopt[i++] = 0x01;
 
-			// SYN/ACK
-			if(flags & TCP_FLAG_ACK){
-				//Send a 64 bit value (key) in tcp options
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00; 
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10; 
-			}
-
-			/* End of MP_CAPABLE Option */
-		}else if(mptcp_option == MPTCP_OPTION_JOIN){
-
-			/* MPTCP MP_JOIN option */
-			tcpopt[i++] = TCP_OPT_MPTCP; //this one??
-
-			if(flags & TCP_FLAG_ACK){
-				// SYN/ACK
-				tcpopt[i++] = 16;
-			}else{
-				// SYN
-				tcpopt[i++] = 12;
-			}
-			// Below is for both SYN & SYN/ACK
-				// MP_JOIN Subtype and rsv and B to 0
-				tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4 | 0));
-				// Address Id (set to 1 hard coded (assuming only one additoinal subflow used))
-				tcpopt[i++] = 1;
-
-			if(flags & TCP_FLAG_ACK){
-				// SYN/ACL
-				// 64 bit Senders Trincated HMAC
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10;
-			}else{
-				// SYN
-				//32 bit recv token
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10;
-			}
-			
-			// Senders Random Number in both SYN & SYN/ACK
-			//32 bit random number
+			// Add Sender's Key (64 bit)
 			tcpopt[i++] = 0x00;
 			tcpopt[i++] = 0x00;
 			tcpopt[i++] = 0x00;
-			tcpopt[i++] = 0x10;
+			tcpopt[i++] = 0x00; 
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x10; 
 
-			/* End of MP_JOIN Option */
 		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYN_LEN;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+
 		/* SACK permit */
 #if TCP_OPT_SACK_ENABLED
 #if !TCP_OPT_TIMESTAMP_ENABLED
@@ -267,71 +340,197 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = TCP_OPT_WSCALE;
 		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
 		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
+		
+	}
+	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
 
-	} else if (flags & TCP_FLAG_ACK){
-		// When only ACK must check if its a control packet first
-		if(isControlMsg){
-			if(mptcp_option == MPTCP_OPTION_CAPABLE){
-				/* MPTCP MP_CAPABLE option */
-				tcpopt[i++] = TCP_OPT_MPTCP; //not this
-				// Length
-				tcpopt[i++] = 20;
-				// MP_CAPABLE Option
-				tcpopt[i++] = TCP_MPTCP_SUBTYPE_CAPABLE;
-				tcpopt[i++] = TCP_MPTCP_VERSION;
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
 
-				//Send a 64 bit value (key) in tcp options (senders)
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00; 
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10;
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
 
-				// Send another 64 bit value (key) (recievers)
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00; 
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10;
-			}else if(mptcp_option == MPTCP_OPTION_JOIN){
-				tcpopt[i++] = TCP_OPT_MPTCP;
-				tcpopt[i++] = 12;
-				tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | 0); //reserved 12 bits must be 0
+			// Length
+			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYNACK_LEN;
 
-				// senders trnuncated HMAC (160 bits)
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+			// Add Checksum required & HMAC-SHA1 (A, H set)
+			tcpopt[i++] = 0x01;
 
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x00;
-				tcpopt[i++] = 0x10;
-			}
+			// Add Sender's Key (64 bit)
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00; 
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x00;
+			tcpopt[i++] = 0x10; 
+			
 		}
-	}else {
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
 
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYNACK_LEN;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+
+		}
+		
+		/* SACK permit */
+#if TCP_OPT_SACK_ENABLED
+#if !TCP_OPT_TIMESTAMP_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+		tcpopt[i++] = TCP_OPT_SACK_PERMIT;
+		tcpopt[i++] = TCP_OPT_SACK_PERMIT_LEN;
+		TRACE_SACK("Local SACK permited.\n");
+#endif /* TCP_OPT_SACK_ENABLED */
+
+		/* Timestamp */
+#if TCP_OPT_TIMESTAMP_ENABLED
+#if !TCP_OPT_SACK_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+#endif /* TCP_OPT_SACK_ENABLED */
+		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+		i += TCP_OPT_TIMESTAMP_LEN;
+#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+
+		/* Window scale */
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_WSCALE;
+		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
+		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
+		
+	}
+	else if(flags == TCP_FLAG_ACK && payloadlen == 0){
+
+
+		// MPTCP
+		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = MPTCP_OPT_CAPABLE_ACK_LEN;
+
+			// MPTCP MP_CAPABLE Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+
+			// Add Checksum required & HMAC-SHA1 (A, H set)
+			tcpopt[i++] = 0x01;
+		
+			// Sender's 64 bit Key (changed endianness)
+			*((uint64_t*)(tcpopt + (i))) = 0x1000000000000000;
+
+			i += 8;
+
+			// Reciver's 64 bit Key
+			// TODO: Have to check first if the key is already set
+			*((uint64_t*)(tcpopt + (i))) = htobe64(cur_stream->peerKey);
+
+			i += 8;
+
+
+			// Add Data ACK option as well
+			// Add MPTCP option Kind
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length = 8 (for ACK only)
+			tcpopt[i++] = 8;
+
+			// MPTCP DSS Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0);
+
+			// Flags (Data ACK present)
+			tcpopt[i++] = 0x01;
+
+			// Data ACK
+			*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->peer_idsn + 1);
+
+			i += 4;
+
+		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+			/* MPTCP Option Kind */
+			tcpopt[i++] = TCP_OPT_MPTCP;
+
+			// Length
+			tcpopt[i++] = 4;
+
+			// MPTCP MP_JOIN Subtype
+			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+			// ....rest needs to fill in
+		}
+		else{
+			
+		}
+		
+
+#if TCP_OPT_TIMESTAMP_ENABLED
+		tcpopt[i++] = TCP_OPT_NOP;
+		tcpopt[i++] = TCP_OPT_NOP;
+		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+		i += TCP_OPT_TIMESTAMP_LEN;
+#endif
+
+#if TCP_OPT_SACK_ENABLED
+		if (flags & TCP_OPT_SACK) {
+			// i += GenerateSACKOption(cur_stream, tcpopt + i);
+		}
+#endif
+		
+		
+	}
+	else{
+
+
+		// // MPTCP
+		// if(mptcp_option == MPTCP_OPTION_CAPABLE){
+
+		// 	/* MPTCP Option Kind */
+		// 	tcpopt[i++] = TCP_OPT_MPTCP;
+
+		// 	// Length
+		// 	tcpopt[i++] = 4;
+
+		// 	// MPTCP MP_CAPABLE Subtype
+		// 	tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+		
+		// 	// ....rest needs to fill in
+		// }
+		// else if(mptcp_option == MPTCP_OPTION_JOIN){
+
+		// 	/* MPTCP Option Kind */
+		// 	tcpopt[i++] = TCP_OPT_MPTCP;
+
+		// 	// Length
+		// 	tcpopt[i++] = 4;
+
+		// 	// MPTCP MP_JOIN Subtype
+		// 	tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+		
+		// 	// ....rest needs to fill in
+		// }
+		// else{
+
+		// }
+		
 #if TCP_OPT_TIMESTAMP_ENABLED
 		tcpopt[i++] = TCP_OPT_NOP;
 		tcpopt[i++] = TCP_OPT_NOP;
@@ -346,158 +545,54 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 #endif
 	}
 
-	if (flags == TCP_FLAG_SYN){
 
-		uint16_t mss;
 
-		
-		/* MSS option */
-		mss = cur_stream->sndvar->mss;
-		tcpopt[i++] = TCP_OPT_MSS;
-		tcpopt[i++] = TCP_OPT_MSS_LEN;
-		tcpopt[i++] = mss >> 8;
-		tcpopt[i++] = mss % 256;
+	// Check if no SYN, because no SYN means data right?
+	// or just check payload length?
+	if(payloadlen > 0){
+		// Add DSS option
 
-		// MPTCP
-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+		// Add MPTCP option Kind
+		tcpopt[i++] = TCP_OPT_MPTCP;
 
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
+		// Length = 18 (if using 4 octets for Data Sequence No) & No Checksum
+		tcpopt[i++] = 20;
 
-			// Length
-			tcpopt[i++] = 4;
+		// MPTCP DSS Subtype
+		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0);
 
-			// MPTCP MP_CAPABLE Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+		// Flags (Data sequence and ACK present)
+		tcpopt[i++] = 0x05;
 
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
+		// Data ACK
+		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->peer_idsn + 1);
 
-			// Length
-			tcpopt[i++] = 4;
+		i += 4;
 
-			// MPTCP MP_JOIN Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else{
+		// Data Sequence Number
+		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->my_idsn + 1);
 
-		}
+		i += 4;
+
+		// Subflow Sequence Number
+		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->snd_nxt - cur_stream->sndvar->iss);
+		// *((uint32_t*)(tcpopt + (i))) = htobe32(1);
+
+		i += 4;
+
+		// Data Level Length
+		*((uint16_t*)(tcpopt + (i))) = htobe16(payloadlen);
+
+		i += 2;
+
+
+		// Put some dummy values for the checksum
+		*((uint16_t*)(tcpopt + (i))) = htobe16(0x0000);
+
+		i += 2;
+
 
 	}
-	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
-
-		// MPTCP
-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_CAPABLE Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else if(mptcp_option == MPTCP_OPTION_JOIN){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_JOIN Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else{
-
-		}
-		
-
-	}
-	else if(flags == TCP_FLAG_ACK){
-
-
-		// MPTCP
-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_CAPABLE Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else if(mptcp_option == MPTCP_OPTION_JOIN){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_JOIN Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else{
-
-		}
-		
-		
-	}
-	else{
-
-
-		// MPTCP
-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_CAPABLE Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else if(mptcp_option == MPTCP_OPTION_JOIN){
-
-			/* MPTCP Option Kind */
-			tcpopt[i++] = TCP_OPT_MPTCP;
-
-			// Length
-			tcpopt[i++] = 4;
-
-			// MPTCP MP_JOIN Subtype
-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
-		
-			// ....rest needs to fill in
-		}
-		else{
-
-		}
-		
-		
-	}
-
 	assert (i == optlen);
 }
 /*----------------------------------------------------------------------------*/
@@ -508,6 +603,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
 		uint8_t *payload, uint16_t payloadlen, 
 		uint32_t cur_ts, uint32_t echo_ts)
 {
+	printf("SendTCPPacketStandalone is being used...\n");
 	struct tcphdr *tcph;
 	uint8_t *tcpopt;
 	uint32_t *ts;
@@ -609,7 +705,7 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
 	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
 	if(isControlMsg){
-		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option);
+		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option, payloadlen);
 	}else{
 		optlen = CalculateOptionLength(flags);
 	}
@@ -691,8 +787,11 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 		cur_stream->need_wnd_adv = TRUE;
 	}
 
+
+
+
 	GenerateTCPOptions(cur_stream, cur_ts, flags, 
-			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option);
+			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option, payloadlen);
 	
 	tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
 	// copy payload if exist
@@ -971,8 +1070,13 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
                     goto out;
                 }
 #endif
+		uint8_t isMPTCP = 0;
+		if (cur_stream->mptcp_cb != NULL){
+			isMPTCP = 1;
+		}
+		
 		if ((sndlen = SendTCPPacket(mtcp, cur_stream, cur_ts,
-					    TCP_FLAG_ACK, data, pkt_len, 0)) < 0) {
+					    TCP_FLAG_ACK, data, pkt_len, isMPTCP)) < 0) {
 			/* there is no available tx buf */
 			packets = -3;
 			goto out;

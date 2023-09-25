@@ -16,12 +16,15 @@
 
 #define TCP_OPT_MPTCP 30 // You can choose an appropriate value not conflicting with existing TCP options
 #define TCP_OPT_MPTCP_LEN 4 // You can choose an appropriate value not conflicting with existing TCP options
-#define TCP_MPTCP_SUBTYPE_CAPABLE 1
-#define TCP_MPTCP_SUBTYPE_JOIN 2
-#define TCP_MPTCP_VERSION 1
-#define MPTCP_OPTION_CAPABLE 1
-#define MPTCP_OPTION_JOIN 2
-#define MPTCP_OPT_CAPABLE_SYN_LEN 4
+
+#define TCP_MPTCP_SUBTYPE_CAPABLE 0
+#define TCP_MPTCP_SUBTYPE_JOIN 1
+#define TCP_MPTCP_VERSION 0
+#define MPTCP_OPTION_CAPABLE 0
+#define MPTCP_OPTION_JOIN 1
+#define TCP_MPTCP_SUBTYPE_DSS 2
+
+#define MPTCP_OPT_CAPABLE_SYN_LEN 12
 #define MPTCP_OPT_CAPABLE_SYNACK_LEN 12
 #define MPTCP_OPT_CAPABLE_ACK_LEN 20
 #define MPTCP_OPT_JOIN_SYN_LEN  12
@@ -55,20 +58,10 @@ typedef struct mptcp_tcp_sock{
 struct mptcp_cb{
     // these are just some random stuff i dont know why they are used
     mptcp_tcp_sock *mptcp_sock;
-    uint8_t mptcp_enabled;
-    uint8_t mptcp_version;
-    uint8_t mptcp_subtype;
-    uint8_t mptcp_sender_key;
-    uint8_t mptcp_receiver_key;
-    uint64_t mptcp_sender_token;
-    uint64_t mptcp_receiver_token;
-    uint64_t mptcp_data_ack;
-    uint64_t mptcp_data_seq;
-    uint64_t mptcp_data_fin_seq;
-    uint64_t mptcp_data_fin_ack;
-    uint64_t mptcp_data_len;
-    uint64_t mptcp_data_fin_len;
-    uint64_t mptcp_data_fin;
+    uint32_t my_idsn;
+    uint32_t peer_idsn;
+    uint32_t ack_to_send;
+    uint32_t seq_no_to_send;
     // why do I have to put struct in front of tcp_stream (else getting compiler error)
     struct tcp_stream *tcp_streams[10];
 };

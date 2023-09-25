@@ -809,6 +809,7 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 	// tcp_stream first_subflow = *cur_stream;
 	// tcp_stream *meta_sock; 
 	// int ret;
+	uint64_t peerKey;
 
 	/* when active open */
 	if (tcph->ack) {
@@ -842,6 +843,18 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 	if (tcph->syn) {
 		if (tcph->ack) {
 
+			// Can we use ParseMPTCPOptions??
+			// peerKey = ParseMPTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+			peerKey = GetPeerKey(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+			
+			if(peerKey != 0){
+				cur_stream->peerKey = peerKey;
+				// Which means can that peer supports MPTCP
+				cur_stream->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
+				cur_stream->mptcp_cb->peer_idsn = GetPeerIdsnFromKey(peerKey);
+				cur_stream->mptcp_cb->my_idsn = 1285339236;
+			}
+			
 			// check if have MP_CAPABLE reply
 			// for now assuming have
 			// meta_sock = cur_stream;
