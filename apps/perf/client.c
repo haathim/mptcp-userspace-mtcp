@@ -180,9 +180,10 @@ main(int argc, char **argv)
 	// Init mtcp
 	DEBUG("Initializing mtcp...\n");
 	if (mtcp_init("client.conf")) {
-		ERROR("Failed to initialize mtcp.\n");
+		ERROR("Failed to initialize mtcp. \n");
 		return -1;
 	}
+
 
 	// Default simple config, this must be done after mtcp_init
 	mtcp_getconf(&mcfg);
@@ -195,14 +196,19 @@ main(int argc, char **argv)
 
 	DEBUG("Creating thread context...");
 	mtcp_core_affinitize(core);
+
 	ctx = (struct thread_context *) calloc(1, sizeof(struct thread_context));
+
 	if (!ctx) {
 		ERROR("Failed to create context.");
+		printf("Hello love\n");
 		perror("calloc");
 		return -1;
 	}
 	ctx->core = core;
+
 	ctx->mctx = mtcp_create_context(core);
+
 	if (!ctx->mctx) {
 		ERROR("Failed to create mtcp context.");
 		return -1;
@@ -306,6 +312,7 @@ end_wait_loop:
 
 	memset(buf, 0x90, sizeof(char) * BUF_LEN);
 	buf[BUF_LEN-1] = '\0';
+
 
 	while (1) {
 		wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN);
