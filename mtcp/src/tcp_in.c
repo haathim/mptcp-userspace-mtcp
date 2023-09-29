@@ -756,34 +756,6 @@ Handle_TCP_ST_LISTEN (mtcp_manager_t mtcp, uint32_t cur_ts,
 	uint8_t mptcp_option = ParseMPTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
 	if (mptcp_option == MPTCP_OPTION_CAPABLE) {
 		cur_stream->isReceivedMPCapableSYN = 1;
-		// create the structures
-		// tcp_stream first_subflow = *cur_stream;
-		// tcp_stream *meta_sock; 
-		// int ret;
-
-		// meta_sock = cur_stream;
-		// now make cur_stream point to the firts subflow (which is not yet in the tcp table)
-		// cur_stream = &first_subflow_tcp_stream;
-		// StreamHTRemove(mtcp->tcp_flow_table, meta_sock);
-		// ret = StreamHTInsert(mtcp->tcp_flow_table, cur_stream);
-		// if(true){
-		// 	// allocating all the data structures
-
-		// 	meta_sock->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
-		// 	meta_sock->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
-
-		// 	cur_stream->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
-		// 	cur_stream->mptcp_sock->mptcp_cb = meta_sock->mptcp_cb;
-
-		// 	meta_sock->mptcp_cb->tcp_streams[0] = cur_stream;
-		// }
-		// cur_stream->mptcp_cb->meta_sock = meta_sock;
-		// cur_stream->mptcp_sock->meta_sock = meta_sock;
-		// cur_stream->mptcp_sock->meta_sock->mptcp_sock = cur_stream->mptcp_sock;
-		// cur_stream->mptcp_sock->meta_sock->mptcp_cb = cur_stream->mptcp_cb;
-		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock = cur_stream->mptcp_sock->meta_sock;
-		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_sock = cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock;
-		// cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_cb = cur_stream->mptcp_sock->meta_sock->mptcp_cb->meta_sock->mptcp_cb
 	}
 
 	if (tcph->syn) {
@@ -856,31 +828,13 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 				socket_map_t socket;
 				socket = cur_stream->socket;
 				cur_stream->mptcp_cb->mpcb_stream = CreateMpcbTCPStream(mtcp, socket, socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, cur_stream->daddr, cur_stream->dport);
+				cur_stream->mptcp_cb->tcp_streams[0] = cur_stream;
 				cur_stream->mptcp_cb->peer_idsn = GetPeerIdsnFromKey(peerKey);
 				cur_stream->mptcp_cb->mpcb_stream->rcvvar->irs = GetPeerIdsnFromKey(peerKey);
 				cur_stream->mptcp_cb->mpcb_stream->sndvar->iss = 1285339236;
 				cur_stream->mptcp_cb->my_idsn = 1285339236;
 			}
-			
-			// check if have MP_CAPABLE reply
-			// for now assuming have
-			// meta_sock = cur_stream;
-			// now make cur_stream point to the firts subflow (which is not yet in the tcp table)
-			// cur_stream = &first_subflow_tcp_stream;
-			// StreamHTRemove(mtcp->tcp_flow_table, meta_sock);
-			// ret = StreamHTInsert(mtcp->tcp_flow_table, cur_stream);
-			// if(true){
-			// 	// allocating all the data structures
-
-			// 	meta_sock->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
-			// 	meta_sock->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
-
-			// 	cur_stream->mptcp_sock = (mptcp_sock *)calloc(1, sizeof(mptcp_sock));
-			// 	cur_stream->mptcp_sock->mptcp_cb = meta_sock->mptcp_cb;
-
-			// 	meta_sock->mptcp_cb->tcp_streams[0] = cur_stream;
-			// }
-			
+		
 			int ret = HandleActiveOpen(mtcp, 
 					cur_stream, cur_ts, tcph, seq, ack_seq, window);
 			if (!ret) {
@@ -1338,6 +1292,7 @@ ProcessTCPPacket(mtcp_manager_t mtcp,
 		if (!cur_stream)
 			return TRUE;
 	}
+
 
 	/* Validate sequence. if not valid, ignore the packet */
 	if (cur_stream->state > TCP_ST_SYN_RCVD) {

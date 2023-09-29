@@ -1499,10 +1499,8 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		return -1;
 	}
 
-
 	cur_stream = socket->stream;
-
-	if (cur_stream->mptcp_cb){
+	if (cur_stream->mptcp_cb != NULL){
 		mpcb_stream = cur_stream->mptcp_cb->mpcb_stream;
 		cur_stream = cur_stream->mptcp_cb->tcp_streams[0]; //decided by scheduler
 	}
@@ -1552,7 +1550,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	}
 	
-
 	// Copying to subflow send buffer
 	sndvar = cur_stream->sndvar;
 

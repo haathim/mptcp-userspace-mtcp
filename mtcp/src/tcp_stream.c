@@ -458,7 +458,7 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 
 	if (socket) {
 		stream->socket = socket;
-		socket->stream = stream;
+		// socket->stream = stream;
 	}
 
 	stream->stream_type = type;
