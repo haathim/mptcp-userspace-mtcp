@@ -1469,6 +1469,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	tcp_stream *cur_stream;
 	struct tcp_send_vars *sndvar;
 	int ret;
+	struct tcp_stream *mpcb_stream = NULL;
 
 	mtcp = GetMTCPManager(mctx);
 	if (!mtcp) {
@@ -1497,13 +1498,15 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		errno = ENOTSOCK;
 		return -1;
 	}
-	
-	// An idea: Here check if the socket streams points to a valid mpcb
-	// If so assign cur_stream as the return of mpcb->scheduler
-	// Next is how to add the DSS option to the packet
 
 
 	cur_stream = socket->stream;
+
+	if (cur_stream->mptcp_cb){
+		mpcb_stream = cur_stream->mptcp_cb->mpcb_stream;
+		cur_stream = cur_stream->mptcp_cb->tcp_streams[0]; //decided by scheduler
+	}
+	
 	if (!cur_stream || 
 			!(cur_stream->state == TCP_ST_ESTABLISHED || 
 			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
@@ -1520,6 +1523,37 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 		}
 	}
 
+	// Copying to mpcb send buffer
+	if (mpcb_stream)
+	{
+		sndvar = mpcb_stream->sndvar;
+		SBUF_LOCK(&sndvar->write_lock);
+#if BLOCKING_SUPPORT
+		if (!(socket->opts & MTCP_NONBLOCK)) {
+			while (sndvar->snd_wnd <= 0) {
+				TRACE_SNDBUF("Waiting for available sending window...\n");
+				if (!mpcb_stream || mpcb_stream->state != TCP_ST_ESTABLISHED) {
+					SBUF_UNLOCK(&sndvar->write_lock);
+					errno = EINTR;
+					return -1;
+				}
+				pthread_cond_wait(&sndvar->write_cond, &sndvar->write_lock);
+				TRACE_SNDBUF("Sending buffer became ready! snd_wnd: %u\n", 
+						sndvar->snd_wnd);
+			}
+		}
+#endif
+
+		ret = CopyFromUser(mtcp, mpcb_stream, buf, len);
+
+		SBUF_UNLOCK(&sndvar->write_lock);
+
+		// In normal tcp_stream there are many other checks done after, but for now not needed
+
+	}
+	
+
+	// Copying to subflow send buffer
 	sndvar = cur_stream->sndvar;
 
 	SBUF_LOCK(&sndvar->write_lock);

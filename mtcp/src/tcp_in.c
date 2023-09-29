@@ -851,7 +851,14 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 				cur_stream->peerKey = peerKey;
 				// Which means can that peer supports MPTCP
 				cur_stream->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
+				// Have to initialize the tcp_stream of mpcb here
+				// and set the variables
+				socket_map_t socket;
+				socket = cur_stream->socket;
+				cur_stream->mptcp_cb->mpcb_stream = CreateMpcbTCPStream(mtcp, socket, socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, cur_stream->daddr, cur_stream->dport);
 				cur_stream->mptcp_cb->peer_idsn = GetPeerIdsnFromKey(peerKey);
+				cur_stream->mptcp_cb->mpcb_stream->rcvvar->irs = GetPeerIdsnFromKey(peerKey);
+				cur_stream->mptcp_cb->mpcb_stream->sndvar->iss = 1285339236;
 				cur_stream->mptcp_cb->my_idsn = 1285339236;
 			}
 			
