@@ -833,6 +833,9 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 				cur_stream->mptcp_cb->mpcb_stream->rcvvar->irs = GetPeerIdsnFromKey(peerKey);
 				cur_stream->mptcp_cb->mpcb_stream->sndvar->iss = 1285339236;
 				cur_stream->mptcp_cb->my_idsn = 1285339236;
+				cur_stream->mptcp_cb->peerKey = peerKey;
+				cur_stream->mptcp_cb->mpcb_stream->snd_nxt = cur_stream->mptcp_cb->my_idsn + 1;
+				cur_stream->mptcp_cb->mpcb_stream->rcv_nxt = cur_stream->mptcp_cb->peer_idsn + 1;
 			}
 		
 			int ret = HandleActiveOpen(mtcp, 
@@ -970,6 +973,10 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 		}
 	}
 
+	// In a similar way have to process DATA_ACK
+	uint32_t dataAck = GetDataAck(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+	printf("DATA_ACK recieved is: %u\n", dataAck);
+
 	if (tcph->fin) {
 		/* process the FIN only if the sequence is valid */
 		/* FIN packet is allowed to push payload (should we check for PSH flag)? */
@@ -986,6 +993,7 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 			return;
 		}
 	}
+
 }
 /*----------------------------------------------------------------------------*/
 static inline void 

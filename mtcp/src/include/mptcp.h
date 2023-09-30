@@ -59,6 +59,7 @@ struct mptcp_cb{
     // these are just some random stuff i dont know why they are used
     uint32_t my_idsn;
     uint32_t peer_idsn;
+    uint64_t peerKey;
     uint32_t ack_to_send;
     uint32_t seq_no_to_send;
     struct tcp_stream *mpcb_stream;

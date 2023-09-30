@@ -6,6 +6,8 @@
 #include "debug.h"
 #include "timer.h"
 #include "ip_in.h"
+#include <endian.h>
+
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -424,4 +426,58 @@ GetPeerIdsnFromKey(uint64_t key)
 	uint32_t peer_idsn;
 	peer_idsn = (uint32_t)(key & 0xFFFFFFFF);
 	return peer_idsn;
+}
+
+// Function to check if a DATA ACK is present in the Data Sequence Signal option type from among the options
+// present in the TCP header
+uint32_t
+GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
+{
+	int i;
+	unsigned int opt, optlen;
+	uint8_t subtypeAndVersion;
+	uint32_t dataAck;
+	uint8_t dataAckPresent = 0;
+
+	for (i = 0; i < len; ) {
+		// why i++ here? Because after using the value only it will increment, so initially it will be,
+		// opt = *(tcpopt + 0) = *tcpopt
+		opt = *(tcpopt + i++);
+		
+		if (opt == TCP_OPT_END) {	// end of option field
+			break;
+		} else if (opt == TCP_OPT_NOP) {	// no option
+			continue;
+		} else {
+
+			optlen = *(tcpopt + i++);
+			if (i + optlen - 2 > len) {
+				break;
+			}
+
+			if (opt == TCP_OPT_MPTCP) {
+				// Check MP_CAPABLE and return Peer Key
+				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
+				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
+					
+					dataAckPresent = *(tcpopt + i + 1) && 0x01;
+					if (dataAckPresent)
+					{
+						dataAck = be32toh(*((uint32_t*)(tcpopt + i + 2)));
+						return dataAck;
+					}
+					
+				}
+
+				// Move to next option
+				i += optlen - 2;
+			}
+			else{
+				// Move to next option
+				i += optlen - 2;
+			}
+		}
+	}
+	//  No DATA_ACK
+	return 0;
 }

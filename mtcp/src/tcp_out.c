@@ -459,7 +459,7 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 			tcpopt[i++] = 0x01;
 
 			// Data ACK
-			*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->peer_idsn + 1);
+			*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->rcv_nxt);
 
 			i += 4;
 
@@ -498,38 +498,6 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		
 	}
 	else{
-
-
-		// // MPTCP
-		// if(mptcp_option == MPTCP_OPTION_CAPABLE){
-
-		// 	/* MPTCP Option Kind */
-		// 	tcpopt[i++] = TCP_OPT_MPTCP;
-
-		// 	// Length
-		// 	tcpopt[i++] = 4;
-
-		// 	// MPTCP MP_CAPABLE Subtype
-		// 	tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
-		
-		// 	// ....rest needs to fill in
-		// }
-		// else if(mptcp_option == MPTCP_OPTION_JOIN){
-
-		// 	/* MPTCP Option Kind */
-		// 	tcpopt[i++] = TCP_OPT_MPTCP;
-
-		// 	// Length
-		// 	tcpopt[i++] = 4;
-
-		// 	// MPTCP MP_JOIN Subtype
-		// 	tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
-		
-		// 	// ....rest needs to fill in
-		// }
-		// else{
-
-		// }
 		
 #if TCP_OPT_TIMESTAMP_ENABLED
 		tcpopt[i++] = TCP_OPT_NOP;
@@ -565,13 +533,15 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 		tcpopt[i++] = 0x05;
 
 		// Data ACK
-		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->peer_idsn + 1);
+		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->rcv_nxt);
 
 		i += 4;
 
 		// Data Sequence Number
-		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->my_idsn + 1);
+		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->snd_nxt);
 
+		cur_stream->mptcp_cb->mpcb_stream->snd_nxt += payloadlen;
+		
 		i += 4;
 
 		// Subflow Sequence Number

@@ -55,4 +55,7 @@ GetPeerKey(tcp_stream *cur_stream,
 uint32_t
 GetPeerIdsnFromKey(uint64_t key);
 
+uint32_t
+GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len);
+
 #endif /* TCP_UTIL_H */	
