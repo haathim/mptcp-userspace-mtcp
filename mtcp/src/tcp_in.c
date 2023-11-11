@@ -956,6 +956,17 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 		return;
 	}
 
+	// get data seq if avaible
+	uint32_t dataSeq = GetDataSeq(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+	if (dataSeq > 0){
+		printf("DATA_SEQ recieved is: %u\n", dataSeq);
+	}
+	
+	// Need to add the data into the mpcb rcv buf after adding to normal rcv buf
+	// which is done in the ProcessTCPPayload function
+	// after adding to mpcb rcv buf need to send a DATAACK through any ofthe subflows
+	// Just like senfing a normal data
+
 	if (payloadlen > 0) {
 		if (ProcessTCPPayload(mtcp, cur_stream, 
 				cur_ts, payload, seq, payloadlen)) {

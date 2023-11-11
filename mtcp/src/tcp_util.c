@@ -466,6 +466,9 @@ GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 						dataAck = be32toh(*((uint32_t*)(tcpopt + i + 2)));
 						return dataAck;
 					}
+					else{
+						return 0;
+					}
 					
 				}
 
@@ -479,5 +482,61 @@ GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 		}
 	}
 	//  No DATA_ACK
+	return 0;
+}
+
+// Get DATA SEQ no
+uint32_t
+GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
+{
+	int i;
+	unsigned int opt, optlen;
+	uint8_t subtypeAndVersion;
+	uint32_t dataSeq;
+	uint8_t dataSeqPresent = 0;
+
+	for (i = 0; i < len; ) {
+		// why i++ here? Because after using the value only it will increment, so initially it will be,
+		// opt = *(tcpopt + 0) = *tcpopt
+		opt = *(tcpopt + i++);
+		
+		if (opt == TCP_OPT_END) {	// end of option field
+			break;
+		} else if (opt == TCP_OPT_NOP) {	// no option
+			continue;
+		} else {
+
+			optlen = *(tcpopt + i++);
+			if (i + optlen - 2 > len) {
+				break;
+			}
+
+			if (opt == TCP_OPT_MPTCP) {
+				// Check MP_CAPABLE and return Peer Key
+				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
+				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
+					
+					dataSeqPresent = *(tcpopt + i + 1) && 0x04;
+					if (dataSeqPresent)
+					{
+						dataSeq = be32toh(*((uint32_t*)(tcpopt + i + 6)));
+						return dataSeq;
+					}
+					else{
+						return 0;
+					}
+					
+				}
+
+				// Move to next option
+				i += optlen - 2;
+			}
+			else{
+				// Move to next option
+				i += optlen - 2;
+			}
+		}
+	}
+	//  No DATA_SEQ
 	return 0;
 }

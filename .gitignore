@@ -65,3 +65,5 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+dpdk-iface-kmod/.cache.mk
+dpdk
