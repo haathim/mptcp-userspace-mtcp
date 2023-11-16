@@ -67,6 +67,7 @@ CalculateOptionLength(uint8_t flags)
 static inline uint16_t
 CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payloadlen)
 {
+	printf("++++++++++++++++++++++\n");
 	uint16_t optlen = 0;
 
 // 	if (flags & TCP_FLAG_SYN) {
@@ -197,7 +198,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 	}
 	else if (flags == TCP_FLAG_ACK && payloadlen == 0)
 	{
-
+		printf("ACK with no payload\n");
 #if TCP_OPT_TIMESTAMP_ENABLED
 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
 #endif
@@ -218,7 +219,8 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 
 	}
 	else{
-
+		
+		printf("ACK with payload\n");
 #if TCP_OPT_TIMESTAMP_ENABLED
 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
 #endif
@@ -228,14 +230,16 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 			optlen += TCP_OPT_SACK_LEN + 2;
 		}
 #endif
-
+		if(payloadlen > 0){
+			printf("Payload is present\n");
+			optlen += 20;
+		}
 	}
 	
-	if(payloadlen > 0){
-		optlen += 20;
-	}
+
 
 	assert(optlen % 4 == 0);
+	printf("----------------------------\n");
 
 	return optlen;
 }
@@ -675,10 +679,13 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
 	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
 	if(isControlMsg){
+		printf("Control message\n");
 		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option, payloadlen);
 	}else{
+		printf("Normal packet\n");
 		optlen = CalculateOptionLength(flags);
 	}
+	
 
 	if (payloadlen + optlen > cur_stream->sndvar->mss) {
 		TRACE_ERROR("Payload size exceeds MSS\n");
@@ -751,6 +758,7 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 		wscale = cur_stream->sndvar->wscale_mine;
 	}
 
+	//TODO: This is where window value is set, need to set window of mpcb?
 	window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
 	tcph->window = htons((uint16_t)MIN(window32, TCP_MAX_WINDOW));
 	/* if the advertised window is 0, we need to advertise again later */
@@ -760,6 +768,8 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 
 
 
+	printf("Sequence number: %u\n", tcph->seq);
+	printf("Optlen: %d\n", optlen);
 
 	GenerateTCPOptions(cur_stream, cur_ts, flags, 
 			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option, payloadlen);
@@ -1353,7 +1363,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
 				/* send the queued ack packets */
 				while (cur_stream->sndvar->ack_cnt > 0) {
 					ret = SendTCPPacket(mtcp, cur_stream, 
-							cur_ts, TCP_FLAG_ACK, NULL, 0, 0);
+							cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
 					if (ret < 0) {
 						/* since there is no available write buffer, break */
 						break;
@@ -1365,7 +1375,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
 				if (cur_stream->sndvar->is_wack) {
 					cur_stream->sndvar->is_wack = FALSE;
 					ret = SendTCPPacket(mtcp, cur_stream, 
-							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0, 0);
+							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0, 1);
 					if (ret < 0) {
 						/* since there is no available write buffer, break */
 						cur_stream->sndvar->is_wack = TRUE;

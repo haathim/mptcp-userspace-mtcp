@@ -244,6 +244,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	memset(stream, 0, sizeof(tcp_stream));
 
 	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
+	
 	if (!stream->rcvvar) {
 		MPFreeChunk(mtcp->flow_pool, stream);
 		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
@@ -383,6 +384,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 
 	UNUSED(da);
 	UNUSED(sa);
+
 	return stream;
 }
 /*---------------------------------------------------------------------------*/
@@ -408,7 +410,7 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 		return NULL;
 	}
 	memset(stream, 0, sizeof(tcp_stream));
-
+	
 	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
 	if (!stream->rcvvar) {
 		MPFreeChunk(mtcp->flow_pool, stream);

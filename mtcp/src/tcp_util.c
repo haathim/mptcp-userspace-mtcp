@@ -7,7 +7,7 @@
 #include "timer.h"
 #include "ip_in.h"
 #include <endian.h>
-
+#include <openssl/sha.h>
 
 #define MAX(a, b) ((a)>(b)?(a):(b))
 #define MIN(a, b) ((a)<(b)?(a):(b))
@@ -420,11 +420,25 @@ PrintTCPOptions(uint8_t *tcpopt, int len)
 }
 
 /*---------------------------------------------------------------------------*/
+uint32_t sha1_hash_number(uint64_t number, unsigned char hash[SHA_DIGEST_LENGTH]) {
+    SHA_CTX sha_ctx;
+    SHA1_Init(&sha_ctx);
+    SHA1_Update(&sha_ctx, &number, sizeof(number));
+    SHA1_Final(hash, &sha_ctx);
+
+	// Extract the last 32 bits
+    uint32_t last32Bits = (uint32_t)(hash[19]) | (uint32_t)(hash[18]) << 8 | (uint32_t)(hash[17]) << 16 | (uint32_t)(hash[16]) << 24;
+
+    return last32Bits;
+}
+
 uint32_t
 GetPeerIdsnFromKey(uint64_t key)
 {
 	uint32_t peer_idsn;
-	peer_idsn = (uint32_t)(key & 0xFFFFFFFF);
+
+	unsigned char hash[SHA_DIGEST_LENGTH];
+	peer_idsn = sha1_hash_number(htobe64(key), hash);
 	return peer_idsn;
 }
 
@@ -460,7 +474,7 @@ GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
 				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
 					
-					dataAckPresent = *(tcpopt + i + 1) && 0x01;
+					dataAckPresent = *(tcpopt + i + 1) & 0x01;
 					if (dataAckPresent)
 					{
 						dataAck = be32toh(*((uint32_t*)(tcpopt + i + 2)));
@@ -512,17 +526,20 @@ GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 			}
 
 			if (opt == TCP_OPT_MPTCP) {
+				printf("MPTCP option.......................................\n");
 				// Check MP_CAPABLE and return Peer Key
 				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
 				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
-					
-					dataSeqPresent = *(tcpopt + i + 1) && 0x04;
+					printf("DSS Option present\n");
+					dataSeqPresent = *(tcpopt + i + 1) & 0x04;
 					if (dataSeqPresent)
 					{
+						printf("DATA_SEQ present\n");
 						dataSeq = be32toh(*((uint32_t*)(tcpopt + i + 6)));
 						return dataSeq;
 					}
 					else{
+						printf("No DATA_SEQ present\n");
 						return 0;
 					}
 					
@@ -537,6 +554,7 @@ GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 			}
 		}
 	}
-	//  No DATA_SEQ
+	//  No DSS
+	printf("No DSS option\n");
 	return 0;
 }

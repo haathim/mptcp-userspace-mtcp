@@ -792,6 +792,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	cur_stream = CreateTCPStream(mtcp, socket, socket->socktype, 
 			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
+	
 	if (!cur_stream) {
 		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
 		errno = ENOMEM;
@@ -1120,6 +1121,8 @@ PeekForUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 static inline int
 CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 {
+	printf("CopyTouser.....\n");
+
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	uint32_t prev_rcv_wnd;
 	int copylen;
@@ -1193,14 +1196,23 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 	}
 	
 	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
-	cur_stream = socket->stream;
+	if (socket->stream->mptcp_cb != NULL)
+	{
+		cur_stream = socket->stream->mptcp_cb->mpcb_stream;
+	}
+	else
+	{
+		cur_stream = socket->stream;
+	}
+
+	// Below commented by Haathim
+	// cur_stream = socket->stream;
         if (!cur_stream || 
 	    !(cur_stream->state >= TCP_ST_ESTABLISHED && 
 	      cur_stream->state <= TCP_ST_CLOSE_WAIT)) {
 		errno = ENOTCONN;
 		return -1;
 	}
-
 	rcvvar = cur_stream->rcvvar;
 	
 	/* if CLOSE_WAIT, return 0 if there is no payload */
@@ -1211,7 +1223,6 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 		if (rcvvar->rcvbuf->merged_len == 0)
 			return 0;
         }
-	
 	/* return EAGAIN if no receive buffer */
 	if (socket->opts & MTCP_NONBLOCK) {
 		if (!rcvvar->rcvbuf || rcvvar->rcvbuf->merged_len == 0) {
@@ -1219,7 +1230,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
 			return -1;
 		}
 	}
-	
+
 	SBUF_LOCK(&rcvvar->read_lock);
 #if BLOCKING_SUPPORT
 	if (!(socket->opts & MTCP_NONBLOCK)) {
