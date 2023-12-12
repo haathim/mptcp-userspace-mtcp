@@ -193,7 +193,7 @@ AllocateFragmentContext(rb_manager_t rbm)
 struct tcp_ring_buffer* 
 RBInit(rb_manager_t rbm, uint32_t init_seq)
 {
-	// printf("init_seq %u\n", init_seq);
+	// //printf("init_seq %u\n", init_seq);
 	struct tcp_ring_buffer* buff = 
 			(struct tcp_ring_buffer*)calloc(1, sizeof(struct tcp_ring_buffer));
 
@@ -289,7 +289,7 @@ int
 RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff, 
 	   void* data, uint32_t len, uint32_t cur_seq)
 {
-	printf("RBPut len %u, cur_seq %u\n", len, cur_seq);
+	//printf("RBPut len %u, cur_seq %u\n", len, cur_seq);
 	int putx, end_off;
 	struct fragment_ctx *new_ctx;
 	struct fragment_ctx* iter;
@@ -303,7 +303,7 @@ RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
 		return 0;
 	putx = cur_seq - buff->head_seq;
 	end_off = putx + len;
-	printf("putx %d, end_off %d, buff->size %d buff->head_seq %u cur_seq %u\n", putx, end_off, buff->size, buff->head_seq, cur_seq);
+	//printf("putx %d, end_off %d, buff->size %d buff->head_seq %u cur_seq %u\n", putx, end_off, buff->size, buff->head_seq, cur_seq);
 	if (buff->size < end_off) {
 		return -2;
 	}

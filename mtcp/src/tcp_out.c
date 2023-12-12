@@ -67,7 +67,7 @@ CalculateOptionLength(uint8_t flags)
 static inline uint16_t
 CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payloadlen)
 {
-	printf("++++++++++++++++++++++\n");
+	// //printf("++++++++++++++++++++++\n");
 	uint16_t optlen = 0;
 
 // 	if (flags & TCP_FLAG_SYN) {
@@ -158,7 +158,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
 		}
 		else if(mptcp_option == MPTCP_OPTION_JOIN){
-			
+			optlen += 12;
 		}
 		else{
 
@@ -189,7 +189,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 			optlen += MPTCP_OPT_CAPABLE_SYNACK_LEN;
 		}
 		else if(mptcp_option == MPTCP_OPTION_JOIN){
-			
+			optlen += 16;
 		}
 		else{
 
@@ -198,7 +198,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 	}
 	else if (flags == TCP_FLAG_ACK && payloadlen == 0)
 	{
-		printf("ACK with no payload\n");
+		//printf("ACK with no payload\n");
 #if TCP_OPT_TIMESTAMP_ENABLED
 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
 #endif
@@ -215,12 +215,15 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 			// For the DATA ACK sent along with this
 			optlen += 8;
 		}
+		else if(mptcp_option == MPTCP_OPTION_JOIN){
+			optlen += 24;
+		}
 
 
 	}
 	else{
 		
-		printf("ACK with payload\n");
+		//printf("ACK with payload\n");
 #if TCP_OPT_TIMESTAMP_ENABLED
 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
 #endif
@@ -231,7 +234,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 		}
 #endif
 		if(payloadlen > 0){
-			printf("Payload is present\n");
+			//printf("Payload is present\n");
 			optlen += 20;
 		}
 	}
@@ -239,7 +242,7 @@ CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payload
 
 
 	assert(optlen % 4 == 0);
-	printf("----------------------------\n");
+	// //printf("----------------------------\n");
 
 	return optlen;
 }
@@ -307,12 +310,20 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
 			tcpopt[i++] = TCP_OPT_MPTCP;
 
 			// Length
-			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYN_LEN;
+			tcpopt[i++] = 12;
 
 			// MPTCP MP_JOIN Subtype
 			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
 		
-			// ....rest needs to fill in
+			//Address ID
+			tcpopt[i++] = 0x01;
+
+			// Reciver's Token (32 bits)
+			
+
+			// Sender's Random Number (32 bits)
+			
+
 		}
 		else{
 
@@ -577,7 +588,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
 		uint8_t *payload, uint16_t payloadlen, 
 		uint32_t cur_ts, uint32_t echo_ts)
 {
-	printf("SendTCPPacketStandalone is being used...\n");
+	//printf("SendTCPPacketStandalone is being used...\n");
 	struct tcphdr *tcph;
 	uint8_t *tcpopt;
 	uint32_t *ts;
@@ -670,6 +681,12 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 
 	uint8_t mptcp_option = MPTCP_OPTION_CAPABLE;
 
+	if (cur_stream->isMPJOINStream)
+	{
+		mptcp_option = MPTCP_OPTION_JOIN;
+	}
+	
+
 	// first check if sending MP_CAPABLE OR MP_JOIN
 	// if(cur_stream->socket->stream != (struct tcp_stream*)(&cur_stream)){
 	// 	// this is not the first subflow
@@ -679,10 +696,10 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
 	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
 	if(isControlMsg){
-		printf("Control message\n");
+		// //printf("Control message\n");
 		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option, payloadlen);
 	}else{
-		printf("Normal packet\n");
+		// //printf("Normal packet\n");
 		optlen = CalculateOptionLength(flags);
 	}
 	
@@ -768,8 +785,8 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
 
 
 
-	printf("Sequence number: %u\n", tcph->seq);
-	printf("Optlen: %d\n", optlen);
+	//printf("Sequence number: %u\n", tcph->seq);
+	//printf("Optlen: %d\n", optlen);
 
 	GenerateTCPOptions(cur_stream, cur_ts, flags, 
 			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option, payloadlen);

@@ -195,8 +195,9 @@ CreateConnection(thread_context_t ctx)
 	addr.sin_port = dport;
 	
 	ret = mtcp_connect(mctx, sockid, 
-			(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+			(struct sockaddr *)&addr, sizeof(struct sockaddr_in), 0);
 	if (ret < 0) {
+		printf("Hello!!!!\n");
 		if (errno != EINPROGRESS) {
 			perror("mtcp_connect");
 			mtcp_close(mctx, sockid);

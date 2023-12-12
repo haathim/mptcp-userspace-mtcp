@@ -224,16 +224,18 @@ tcp_stream *
 CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport)
 {
+
 	tcp_stream *stream = NULL;
 	int ret;
 
 	uint8_t is_external;
 	uint8_t *sa;
 	uint8_t *da;
-	
+	// some problem here
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
 	stream = (tcp_stream *)MPAllocateChunk(mtcp->flow_pool);
+
 	if (!stream) {
 		TRACE_ERROR("Cannot allocate memory for the stream. "
 				"CONFIG.max_concurrency: %d, concurrent: %u\n", 
@@ -244,7 +246,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	memset(stream, 0, sizeof(tcp_stream));
 
 	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
-	
+
 	if (!stream->rcvvar) {
 		MPFreeChunk(mtcp->flow_pool, stream);
 		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
@@ -290,7 +292,6 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	mtcp->flow_cnt++;
 
 	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
-
 	if (socket) {
 		stream->socket = socket;
 		socket->stream = stream;
@@ -363,7 +364,6 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 #endif
 		return NULL;
 	}
-
 	sa = (uint8_t *)&stream->saddr;
 	da = (uint8_t *)&stream->daddr;
 	TRACE_STREAM("CREATED NEW TCP STREAM %d: "
@@ -398,7 +398,6 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	uint8_t is_external;
 	uint8_t *sa;
 	uint8_t *da;
-	
 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
 
 	stream = (tcp_stream *)MPAllocateChunk(mtcp->flow_pool);
@@ -456,7 +455,7 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	// stream->on_hash_table = TRUE;
 	// mtcp->flow_cnt++;
 
-	// pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
 
 	if (socket) {
 		stream->socket = socket;

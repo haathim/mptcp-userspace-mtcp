@@ -3,6 +3,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <assert.h>
+#include <arpa/inet.h>
 
 #include "mtcp.h"
 #include "mtcp_api.h"
@@ -691,7 +692,7 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
 /*----------------------------------------------------------------------------*/
 int 
 mtcp_connect(mctx_t mctx, int sockid, 
-		const struct sockaddr *addr, socklen_t addrlen)
+		const struct sockaddr *addr, socklen_t addrlen, mptcp_cb *mptcp_cb)
 {
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
@@ -730,9 +731,9 @@ mtcp_connect(mctx_t mctx, int sockid,
 		errno = EFAULT;
 		return -1;
 	}
-
 	/* we only allow bind() for AF_INET address */
 	if (addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
+		//printf("Kakka is coming...\n");
 		TRACE_API("Socket %d: invalid argument!\n", sockid);
 		errno = EAFNOSUPPORT;
 		return -1;
@@ -740,6 +741,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	socket = &mtcp->smap[sockid];
 	if (socket->stream) {
+		//printf("Chu is coming...\n");
 		TRACE_API("Socket %d: stream already exist!\n", sockid);
 		if (socket->stream->state >= TCP_ST_ESTABLISHED) {
 			errno = EISCONN;
@@ -748,7 +750,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 		}
 		return -1;
 	}
-
 	addr_in = (struct sockaddr_in *)addr;
 	dip = addr_in->sin_addr.s_addr;
 	dport = addr_in->sin_port;
@@ -768,6 +769,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 			return -1;
 		}
 	} else {
+		
 		if (mtcp->ap) {
 			ret = FetchAddressPerCore(mtcp->ap, 
 						  mctx->cpu, num_queues, addr_in, &socket->saddr);
@@ -789,16 +791,19 @@ mtcp_connect(mctx_t mctx, int sockid,
 		socket->opts |= MTCP_ADDR_BIND;
 		is_dyn_bound = TRUE;
 	}
-
 	cur_stream = CreateTCPStream(mtcp, socket, socket->socktype, 
 			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
+	
+	if (mptcp_cb)
+	{
+		cur_stream->isMPJOINStream = 1;
+	}
 	
 	if (!cur_stream) {
 		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
 		errno = ENOMEM;
 		return -1;
 	}
-
 	if (is_dyn_bound)
 		cur_stream->is_bound_addr = TRUE;
 	cur_stream->sndvar->cwnd = 1;
@@ -806,12 +811,12 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	cur_stream->state = TCP_ST_SYN_SENT;
 	TRACE_STATE("Stream %d: TCP_ST_SYN_SENT\n", cur_stream->id);
-
 	SQ_LOCK(&mtcp->ctx->connect_lock);
 	ret = StreamEnqueue(mtcp->connectq, cur_stream);
 	SQ_UNLOCK(&mtcp->ctx->connect_lock);
 	mtcp->wakeup_flag = TRUE;
 	if (ret < 0) {
+
 		TRACE_ERROR("Socket %d: failed to enqueue to conenct queue!\n", sockid);
 		SQ_LOCK(&mtcp->ctx->destroyq_lock);
 		StreamEnqueue(mtcp->destroyq, cur_stream);
@@ -822,10 +827,12 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	/* if nonblocking socket, return EINPROGRESS */
 	if (socket->opts & MTCP_NONBLOCK) {
+
 		errno = EINPROGRESS;
 		return -1;
 
 	} else {
+
 		while (1) {
 			if (!cur_stream) {
 				TRACE_ERROR("STREAM DESTROYED\n");
@@ -846,6 +853,7 @@ mtcp_connect(mctx_t mctx, int sockid,
 			usleep(1000);
 		}
 	}
+
 
 	return 0;
 }
@@ -1121,7 +1129,7 @@ PeekForUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 static inline int
 CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 {
-	printf("CopyTouser.....\n");
+	//printf("CopyTouser.....\n");
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	uint32_t prev_rcv_wnd;
@@ -1616,6 +1624,42 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 	}
 
 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
+
+	// mp_join will be sent after the second write call (decsion for now)
+	static int write_count = -1;
+
+
+
+	if(cur_stream->mptcp_cb != NULL){
+		write_count++;
+		// printf("write_count: %d\n", write_count);
+		if (write_count == 1)
+		{
+			// starting a mp_join
+			// create a socket for the new subflow (do we really need? for now doing just so easy to put addresses)
+			int new_subflow_sockid = mtcp_socket(mctx, AF_INET, SOCK_STREAM, 0);
+			
+			socket_map_t new_subflow_socket = &mtcp->smap[new_subflow_sockid];
+			struct sockaddr_in addr;
+			addr.sin_family = AF_INET;
+			char var[] = "192.168.61.3";
+			addr.sin_addr.s_addr = inet_addr(var);
+			addr.sin_port = cur_stream->dport;
+			
+			// create a tcpstream
+			// CreateTCPStream(mtcp, socket, socket->socktype, 
+			// 		socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
+
+			int new_subflow_ret = mtcp_connect(mctx, new_subflow_sockid, (struct sockaddr *)&addr, sizeof(struct sockaddr_in), );
+			//printf("Returned Value is: %d\n", new_subflow_ret);
+			
+			// tcp_stream* subflow_tcp_stream = CreateTCPStream(mtcp, new_subflow_socket, new_subflow_socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, addr.sin_addr.s_addr, cur_stream->dport);
+			
+
+		}
+		
+		
+	}
 	return ret;
 }
 /*----------------------------------------------------------------------------*/
