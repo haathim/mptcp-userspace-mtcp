@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <netinet/in.h>
 #include <sys/uio.h>
-#include "mptcp.h"
+// #include "mptcp.h"
 
 #ifndef UNUSED
 #define UNUSED(x)	(void)x
@@ -104,6 +104,8 @@ mtcp_accept(mctx_t mctx, int sockid, struct sockaddr *addr, socklen_t *addrlen);
 int 
 mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr, 
 		in_addr_t daddr, in_addr_t dport);
+
+typedef struct mptcp_cb mptcp_cb;
 
 int 
 mtcp_connect(mctx_t mctx, int sockid, 
