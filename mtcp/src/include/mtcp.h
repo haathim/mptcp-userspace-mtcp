@@ -126,6 +126,7 @@ struct eth_table
 struct route_table
 {
 	uint32_t daddr;
+	uint32_t saddr; // source address (needed for multipath situations)
 	uint32_t mask;
 	uint32_t masked;
 	int prefix;

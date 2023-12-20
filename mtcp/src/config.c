@@ -111,6 +111,7 @@ static void
 EnrollRouteTableEntry(char *optstr)
 {
 	char *daddr_s;
+	char *saddr_s;
 	char *prefix;
 #ifdef DISABLE_NETMAP 
 	char *dev;
@@ -123,10 +124,15 @@ EnrollRouteTableEntry(char *optstr)
 	saveptr = NULL;
 	daddr_s = strtok_r(optstr, "/", &saveptr);
 	prefix = strtok_r(NULL, " ", &saveptr);
+	printf("ErollRouteTableEntry: prefix: %s\n", prefix);
+	saddr_s = strtok_r(NULL, " ", &saveptr);
+	printf("ErollRouteTableEntry: saddr_s: %s\n", saddr_s);
+
 #ifdef DISABLE_NETMAP
 	dev = strtok_r(NULL, "\n", &saveptr);
 #endif
 	assert(daddr_s != NULL);
+	assert(saddr_s != NULL);
 	assert(prefix != NULL);
 #ifdef DISABLE_NETMAP	
 	assert(dev != NULL);
@@ -167,6 +173,7 @@ EnrollRouteTableEntry(char *optstr)
 	}
 
 	CONFIG.rtable[ridx].daddr = inet_addr(daddr_s);
+	CONFIG.rtable[ridx].saddr = inet_addr(saddr_s);
 	CONFIG.rtable[ridx].prefix = mystrtol(prefix, 10);
 	if (CONFIG.rtable[ridx].prefix > 32 || CONFIG.rtable[ridx].prefix < 0) {
 		TRACE_CONFIG("Prefix length should be between 0 - 32.\n");
@@ -250,6 +257,7 @@ PrintRoutingTable()
 {
 	int i;
 	uint8_t *da;
+	uint8_t *sa;
 	uint8_t *m;
 	uint8_t *md;
 
@@ -257,13 +265,14 @@ PrintRoutingTable()
 	TRACE_CONFIG("Routes:\n");
 	for (i = 0; i < CONFIG.routes; i++) {
 		da = (uint8_t *)&CONFIG.rtable[i].daddr;
+		sa = (uint8_t *)&CONFIG.rtable[i].saddr;
 		m = (uint8_t *)&CONFIG.rtable[i].mask;
 		md = (uint8_t *)&CONFIG.rtable[i].masked;
 		TRACE_CONFIG("Destination: %u.%u.%u.%u/%d, Mask: %u.%u.%u.%u, "
-				"Masked: %u.%u.%u.%u, Route: ifdx-%d\n", 
+				"Masked: %u.%u.%u.%u, Route: ifdx-%d <== SRC: %u.%u.%u.%u\n", 
 				da[0], da[1], da[2], da[3], CONFIG.rtable[i].prefix, 
 				m[0], m[1], m[2], m[3], md[0], md[1], md[2], md[3], 
-				CONFIG.rtable[i].nif);
+				CONFIG.rtable[i].nif, sa[0], sa[1], sa[2], sa[3]);
 	}
 	if (CONFIG.routes == 0)
 		TRACE_CONFIG("(blank)\n");
