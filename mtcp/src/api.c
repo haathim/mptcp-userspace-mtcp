@@ -668,7 +668,6 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
 
 		/* for the INADDR_ANY, find the output interface for the destination
 		   and set the saddr_base as the ip address of the output interface */
-		printf("mtcp init rss\n");
 		nif_out = GetOutputInterface(daddr, saddr_base, &is_external);
 		if (nif_out < 0) {
 			errno = EINVAL;
@@ -696,7 +695,6 @@ int
 mtcp_connect(mctx_t mctx, int sockid, 
 		const struct sockaddr *addr, socklen_t addrlen, mptcp_cb *mptcp_cb)
 {
-	printf("mtcp_connect called\n");
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
 	tcp_stream *cur_stream;
@@ -743,7 +741,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 
 	socket = &mtcp->smap[sockid];
 	if (socket->stream) {
-		//printf("Chu is coming...\n");
 		TRACE_API("Socket %d: stream already exist!\n", sockid);
 		if (socket->stream->state >= TCP_ST_ESTABLISHED) {
 			errno = EISCONN;
@@ -777,7 +774,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 						  mctx->cpu, num_queues, addr_in, &socket->saddr);
 		} else {
 			uint8_t is_external;
-			printf("mtcp_connect .......\n");
 			nif = GetOutputInterface(dip, socket->saddr.sin_addr.s_addr, &is_external);
 			if (nif < 0) {
 				errno = EINVAL;
@@ -837,7 +833,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 	} else {
 
 		while (1) {
-			printf("Chu is coming...\n");
 			// This place looping indefintely
 			if (!cur_stream) {
 				TRACE_ERROR("STREAM DESTROYED\n");
@@ -1136,7 +1131,6 @@ PeekForUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 static inline int
 CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
 {
-	//printf("CopyTouser.....\n");
 
 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
 	uint32_t prev_rcv_wnd;
@@ -1639,7 +1633,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 
 	if(cur_stream->mptcp_cb != NULL){
 		write_count++;
-		// printf("write_count: %d\n", write_count);
 		if (write_count == 1)
 		{
 			// starting a mp_join
@@ -1664,9 +1657,7 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 			// create a tcpstream
 			// CreateTCPStream(mtcp, socket, socket->socktype, 
 			// 		socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
-			printf("Calling mtcp_connect\n");
 			int new_subflow_ret = mtcp_connect(mctx, new_subflow_sockid, (struct sockaddr *)&addr, sizeof(struct sockaddr_in), cur_stream->mptcp_cb);
-			printf("Returned Value from mtcp_connect is: %d\n", new_subflow_ret);
 			
 			// tcp_stream* subflow_tcp_stream = CreateTCPStream(mtcp, new_subflow_socket, new_subflow_socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, addr.sin_addr.s_addr, cur_stream->dport);
 			

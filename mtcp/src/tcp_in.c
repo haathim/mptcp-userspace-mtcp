@@ -830,12 +830,10 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
 				cur_stream->mptcp_cb->mpcb_stream = CreateMpcbTCPStream(mtcp, socket, socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, cur_stream->daddr, cur_stream->dport);
 				if (cur_stream->mptcp_cb->mpcb_stream->rcvvar->rcvbuf != NULL)
 				{
-					//printf("!!!!!YAYYYYYY!!!!1\n");
 				}
 				
 				cur_stream->mptcp_cb->tcp_streams[0] = cur_stream;
 				cur_stream->mptcp_cb->peer_idsn = GetPeerIdsnFromKey(peerKey);
-				//printf("Peer IDSN: %u\n", cur_stream->mptcp_cb->peer_idsn);
 				cur_stream->mptcp_cb->mpcb_stream->rcvvar->irs = GetPeerIdsnFromKey(peerKey);
 				cur_stream->mptcp_cb->mpcb_stream->sndvar->iss = 1285339236;
 				cur_stream->mptcp_cb->my_idsn = 1285339236;
@@ -968,7 +966,6 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 	if(cur_stream->mptcp_cb != NULL){
 		dataSeq = GetDataSeq(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
 		if (dataSeq > 0){
-			//printf("DATA_SEQ recieved is: %u\n", dataSeq);
 		}
 
 	}
@@ -979,7 +976,6 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 	// Just like senfing a normal data
 
 	if (payloadlen > 0) {
-		//printf("Payload length is: %d\n", payloadlen);
 		if (ProcessTCPPayload(mtcp, cur_stream, 
 				cur_ts, payload, seq, payloadlen)) {
 			/* if return is TRUE, send ACK */
@@ -1006,7 +1002,6 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
 
 	// In a similar way have to process DATA_ACK
 	uint32_t dataAck = GetDataAck(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
-	//printf("DATA_ACK recieved is: %u\n", dataAck);
 
 	if (tcph->fin) {
 		/* process the FIN only if the sequence is valid */
@@ -1468,9 +1463,7 @@ int CopyFromSubflowToMpcb(mtcp_manager_t mtcp, tcp_stream *mpcb_stream, tcp_stre
 	int ret;
 
 	/* allocate receive buffer if not exist */
-	// //printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
 	if (!mpcb_rcvvar->rcvbuf) {
-		// //printf("data_seq is: %u\n", data_seq);
 		mpcb_rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mpcb_rcvvar->irs + 1);
 		if (!mpcb_rcvvar->rcvbuf) {
 			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
@@ -1482,7 +1475,6 @@ int CopyFromSubflowToMpcb(mtcp_manager_t mtcp, tcp_stream *mpcb_stream, tcp_stre
 			return ERROR;
 		}
 	}
-	// //printf("----------------------------------------------------------------------------------------------\n");
 
 	if (SBUF_LOCK(&mpcb_rcvvar->read_lock)) {
 		if (errno == EDEADLK)
@@ -1491,14 +1483,11 @@ int CopyFromSubflowToMpcb(mtcp_manager_t mtcp, tcp_stream *mpcb_stream, tcp_stre
 	}
 
 	mpcb_prev_rcv_nxt = mpcb_stream->rcv_nxt;
-	// //printf("++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
-	//printf("data_seq is: %u\n", data_seq);
 	ret = RBPut(mtcp->rbm_rcv, 
 			mpcb_rcvvar->rcvbuf, subflow_rcvvar->rcvbuf->head, (uint32_t)copylen, data_seq);
 	if (ret < 0) {
 		TRACE_ERROR("Cannot merge payload. reason: %d\n", ret);
 	}
-	// //printf("----------------------------------------------------------------------------------------------\n");
 	RBRemove(mtcp->rbm_rcv, subflow_rcvvar->rcvbuf, copylen, AT_APP);
 	subflow_rcvvar->rcv_wnd = subflow_rcvvar->rcvbuf->size - subflow_rcvvar->rcvbuf->merged_len;
 
