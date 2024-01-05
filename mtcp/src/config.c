@@ -37,6 +37,7 @@ struct mtcp_config CONFIG = {
 	.tcp_timeout	  =			TCP_TIMEOUT,
 	.tcp_timewait	  =			TCP_TIMEWAIT,
 	.num_mem_ch	  =			0,
+	.gatewayCount = 0,
 #if USE_CCP
 	.cc           	  =         		"reno\n",
 #endif
@@ -124,9 +125,7 @@ EnrollRouteTableEntry(char *optstr)
 	saveptr = NULL;
 	daddr_s = strtok_r(optstr, "/", &saveptr);
 	prefix = strtok_r(NULL, " ", &saveptr);
-	printf("ErollRouteTableEntry: prefix: %s\n", prefix);
 	saddr_s = strtok_r(NULL, " ", &saveptr);
-	printf("ErollRouteTableEntry: saddr_s: %s\n", saddr_s);
 
 #ifdef DISABLE_NETMAP
 	dev = strtok_r(NULL, "\n", &saveptr);
@@ -187,8 +186,31 @@ EnrollRouteTableEntry(char *optstr)
 
 	if (CONFIG.rtable[ridx].mask == 0) {
 		TRACE_CONFIG("Default Route GW set!\n");
-		CONFIG.gateway = &CONFIG.rtable[ridx];
-	}	
+		CONFIG.gateway[CONFIG.gatewayCount++] = &CONFIG.rtable[ridx];
+	}
+
+	// By Haathim: I dont think below is correct
+	// int j;
+	// if (CONFIG.rtable[ridx].mask == 0) {
+		
+	// 	for ( j = 0; j < ETH_NUM; j++)
+	// 	{
+	// 		if (CONFIG.gateway[j]->saddr == CONFIG.rtable[ridx].saddr)
+	// 		{
+	// 			TRACE_CONFIG("Default Route GW set[%d]!\n", j);
+	// 			CONFIG.gateway[j] = &CONFIG.rtable[ridx];
+	// 			break;
+	// 		}
+			
+	// 	}
+		
+		
+	// }	
+
+	// if (CONFIG.rtable[ridx].mask == 0) {
+	// 	TRACE_CONFIG("Default Route GW set!\n");
+	// 	CONFIG.gateway = &CONFIG.rtable[ridx];
+	// }
 }
 /*----------------------------------------------------------------------------*/
 int 
@@ -199,6 +221,8 @@ SetRoutingTableFromFile()
 	FILE *fc;
 	char optstr[MAX_OPTLINE_LEN];
 	int i;
+	int j, allGatewaysAreAdded = 0;
+
 
 	TRACE_CONFIG("Loading routing configurations from : %s\n", route_file);
 
@@ -212,31 +236,54 @@ SetRoutingTableFromFile()
 	while (1) {
 		char *iscomment;
 		int num;
+		int numOfDefGateways;
   
+		// check if no more lines in route file
 		if (fgets(optstr, MAX_OPTLINE_LEN, fc) == NULL)
 			break;
 
 		//skip comment
 		iscomment = strchr(optstr, '#');
+		// first char of the line is '#', meaning it's a comment
 		if (iscomment == optstr)
 			continue;
 		if (iscomment != NULL)
 			*iscomment = 0;
 
+		// check if the string is equal to "ROUTE" i.e. an actual route entry
+		// (strncmp returns 0 if both equal)
 		if (!strncmp(optstr, ROUTES, sizeof(ROUTES) - 1)) {
 			num = GetIntValue(optstr + sizeof(ROUTES));
 			if (num <= 0)
 				break;
 
+			// Can we do without number of default gws?
+			numOfDefGateways = GetIntValue(optstr + sizeof(ROUTES) + 2); //this is only correct of ints are one digit
+			printf("numOfDefGateways: %d\n", numOfDefGateways);
+
 			for (i = 0; i < num; i++) {
 				if (fgets(optstr, MAX_OPTLINE_LEN, fc) == NULL)
 					break;
 
+				// if it's a comment, skip it
 				if (*optstr == '#') {
 					i -= 1;
 					continue;
 				}
-				if (!CONFIG.gateway)
+
+				for (j = 0; j < numOfDefGateways; j++)
+				{
+					if(!CONFIG.gateway[j]){
+						allGatewaysAreAdded = 0;
+						break;
+					}
+				}
+				
+				// b4 it checks if the gateway entry is set
+				// but now have to check if at least one entry is not set
+				// but how to without knowing the number def gw entries there are?
+				// if the def dw is not set
+				if (!allGatewaysAreAdded)
 					EnrollRouteTableEntry(optstr);
 				else {
 					TRACE_ERROR("Default gateway settings in %s should "
@@ -437,12 +484,26 @@ EnrollARPTableEntry(char *optstr)
 	dip_mask = MaskFromPrefix(prefix);
 	CONFIG.arp.entry[idx].ip_mask = dip_mask;
 	CONFIG.arp.entry[idx].ip_masked = CONFIG.arp.entry[idx].ip & dip_mask;
-	if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+
+	int j;
+	for ( j = 0; j < ETH_NUM; j++)
+	{
+		if (CONFIG.gateway[j] && ((CONFIG.gateway[j])->daddr &
 			       CONFIG.arp.entry[idx].ip_mask) ==
-	    CONFIG.arp.entry[idx].ip_masked) {
-		CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
-		TRACE_CONFIG("ARP Gateway SET!\n");
+			CONFIG.arp.entry[idx].ip_masked) {
+			CONFIG.arp.gateway[j] = &CONFIG.arp.entry[idx];
+			TRACE_CONFIG("ARP Gateway SET!\n");
+			break;
+		}
 	}
+
+	// if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+	// 			CONFIG.arp.entry[idx].ip_mask) ==
+	// 			CONFIG.arp.entry[idx].ip_masked) {
+	// 	CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
+	// 	TRACE_CONFIG("ARP Gateway SET!\n");
+	// }
+
 
 /*
 	int i, cnt;

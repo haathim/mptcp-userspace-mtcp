@@ -4,8 +4,8 @@
 #include <stdint.h>
 #include "tcp_stream.h"
 
-extern inline int 
-GetOutputInterface(uint32_t daddr, uint8_t *is_external);
+extern inline int
+GetOutputInterface(uint32_t daddr, uint32_t saddr, uint8_t *is_external);
 
 void
 ForwardIPv4Packet(mtcp_manager_t mtcp, int nif_in, char *buf, int len);

@@ -5,13 +5,14 @@
 #include "debug.h"
 
 /*----------------------------------------------------------------------------*/
+// Modified to include the source address as well (needed for multipath situations)
 inline int
-GetOutputInterface(uint32_t daddr, uint8_t *is_external)
+GetOutputInterface(uint32_t daddr, uint32_t saddr, uint8_t *is_external)
 {
-	//printf("Getting Output Interface of: %u\n", daddr);
 	int nif = -1;
 	int i;
 	int prefix = 0;
+	int j;
 
 	*is_external = 0;
 	/* Longest prefix matching */
@@ -20,9 +21,24 @@ GetOutputInterface(uint32_t daddr, uint8_t *is_external)
 			if (CONFIG.rtable[i].prefix > prefix) {
 				nif = CONFIG.rtable[i].nif;
 				prefix = CONFIG.rtable[i].prefix;
-			} else if (CONFIG.gateway) {
-				*is_external = 1;
-				nif = (CONFIG.gateway)->nif;
+			} else {
+				if (saddr == 0)
+				{
+					*is_external = 1;
+					nif = (CONFIG.gateway[0])->nif;
+				}
+				else{
+				
+					for ( j = 0; j < CONFIG.gatewayCount; j++)
+					{
+						printf("j: %d\n", j);
+						printf("saddr: %u, gateway_saddr: %u\n", saddr, CONFIG.gateway[j]->saddr);
+						if (CONFIG.gateway[j] && CONFIG.gateway[j]->saddr == saddr){
+							*is_external = 1;
+							nif = (CONFIG.gateway[j])->nif;
+						}
+					}
+				}
 			}
 			break;
 		}
@@ -46,12 +62,15 @@ IPOutputStandalone(struct mtcp_manager *mtcp, uint8_t protocol,
 	int nif;
 	unsigned char * haddr, is_external;
 	int rc = -1;
+	int j;
 
-	nif = GetOutputInterface(daddr, &is_external);
+	printf("IPOutputStandalone: daddr: %u, saddr: %u\n", daddr, saddr);
+
+	nif = GetOutputInterface(daddr, saddr, &is_external);
 	if (nif < 0)
 		return NULL;
 
-	haddr = GetDestinationHWaddr(daddr, is_external);
+	haddr = GetDestinationHWaddr(daddr, saddr, is_external);
 	if (!haddr) {
 #if 0
 		uint8_t *da = (uint8_t *)&daddr;
@@ -59,11 +78,16 @@ IPOutputStandalone(struct mtcp_manager *mtcp, uint8_t protocol,
 				"is not in ARP table!\n",
 				da[0], da[1], da[2], da[3]);
 #endif
-		RequestARP(mtcp, (is_external) ? ((CONFIG.gateway)->daddr) : daddr,
+		for(j = 0; j < CONFIG.gatewayCount; j++)
+		{
+			if (CONFIG.gateway[j]->saddr == saddr){
+				RequestARP(mtcp, (is_external) ? ((CONFIG.gateway[j])->daddr) : daddr,
 			   nif, mtcp->cur_ts);
+			}
+		}
 		return NULL;
 	}
-	
+
 	iph = (struct iphdr *)EthernetOutput(mtcp, 
 			ETH_P_IP, nif, haddr, payloadlen + IP_HEADER_LEN);
 	if (!iph) {
@@ -111,16 +135,19 @@ IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen)
 	int nif;
 	unsigned char *haddr, is_external = 0;
 	int rc = -1;
+	int j;
 
 	if (stream->sndvar->nif_out >= 0) {
 		nif = stream->sndvar->nif_out;
 	} else {
-		nif = GetOutputInterface(stream->daddr, &is_external);
+		printf("IPOutput: stream->daddr: %u, stream->saddr: %u\n", stream->daddr, stream->saddr);
+		nif = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
 		stream->sndvar->nif_out = nif;
 		stream->is_external = is_external;
 	}
+	printf("is_external: %d\n", is_external);
 
-	haddr = GetDestinationHWaddr(stream->daddr, stream->is_external);
+	haddr = GetDestinationHWaddr(stream->daddr, stream->saddr, stream->is_external);
 	if (!haddr) {
 #if 0
 		uint8_t *da = (uint8_t *)&stream->daddr;
@@ -130,8 +157,14 @@ IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen)
 #endif
 		/* if not found in the arp table, send arp request and return NULL */
 		/* tcp will retry sending the packet later */
-		RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway)->daddr : stream->daddr,
+		for(j = 0; j < CONFIG.gatewayCount; j++)
+		{
+			if (CONFIG.gateway[j]->saddr == stream->saddr){
+				RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway[j])->daddr : stream->daddr,
 			   stream->sndvar->nif_out, mtcp->cur_ts);
+			}
+		}
+		
 		return NULL;
 	}
 	

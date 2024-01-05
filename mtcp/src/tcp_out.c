@@ -652,7 +652,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
 #ifndef DISABLE_HWCSUM
 	uint8_t is_external;
 	if (mtcp->iom->dev_ioctl != NULL)
-		rc = mtcp->iom->dev_ioctl(mtcp->ctx, GetOutputInterface(daddr, &is_external),
+		rc = mtcp->iom->dev_ioctl(mtcp->ctx, GetOutputInterface(daddr, saddr, &is_external),
 					  PKT_TX_TCPIP_CSUM, NULL);
 	UNUSED(is_external);
 #endif

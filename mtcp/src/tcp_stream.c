@@ -306,7 +306,7 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->sndvar->mss = TCP_DEFAULT_MSS;
 	stream->sndvar->wscale_mine = TCP_DEFAULT_WSCALE;
 	stream->sndvar->wscale_peer = 0;
-	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, &is_external);
+	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
 	stream->is_external = is_external;
 
 	stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
@@ -471,7 +471,7 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
 	stream->sndvar->mss = TCP_DEFAULT_MSS;
 	stream->sndvar->wscale_mine = TCP_DEFAULT_WSCALE;
 	stream->sndvar->wscale_peer = 0;
-	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, &is_external);
+	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
 	stream->is_external = is_external;
 
 	stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
@@ -560,7 +560,7 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 	int bound_addr = FALSE;
 	uint8_t *sa, *da;
 	int ret;
-
+	uint32_t saddr = stream->saddr;
 #ifdef DUMP_STREAM
 	if (stream->close_reason != TCP_ACTIVE_CLOSE && 
 			stream->close_reason != TCP_PASSIVE_CLOSE) {
@@ -715,7 +715,7 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
 			ret = FreeAddress(mtcp->ap, &addr);
 		} else {
 			uint8_t is_external;
-			int nif = GetOutputInterface(addr.sin_addr.s_addr, &is_external);
+			int nif = GetOutputInterface(addr.sin_addr.s_addr, saddr, &is_external);
 			if (nif < 0) {
 				TRACE_ERROR("nif is negative!\n");
 				ret = -1;

@@ -145,7 +145,7 @@ struct arp_entry
 struct arp_table
 {
 	struct arp_entry *entry;
-	struct arp_entry *gateway;
+	struct arp_entry *gateway[ETH_NUM];
 	int entries;
 };
 /*----------------------------------------------------------------------------*/
@@ -158,7 +158,8 @@ struct mtcp_config
 
 	/* route config */
 	struct route_table *rtable;		// routing table
-	struct route_table *gateway;	
+	struct route_table *gateway[ETH_NUM];
+	int gatewayCount;	
 	int routes;						// # of entries
 
 	/* arp config */

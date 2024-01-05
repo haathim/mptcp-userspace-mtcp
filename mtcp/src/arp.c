@@ -95,14 +95,27 @@ GetHWaddr(uint32_t ip)
 }
 /*----------------------------------------------------------------------------*/
 unsigned char *
-GetDestinationHWaddr(uint32_t dip, uint8_t is_gateway)
+GetDestinationHWaddr(uint32_t dip, uint32_t sip, uint8_t is_gateway)
 {
 	unsigned char *d_haddr = NULL;
 	int prefix = 0;
 	int i;
 
-	if (is_gateway == 1 && CONFIG.arp.gateway)
-		d_haddr = (CONFIG.arp.gateway)->haddr;
+	// loop through CONFIG.gateway[i] and check if sip == gateway.saddr
+	if (is_gateway == 1)
+	{
+		for ( i = 0; i < CONFIG.gatewayCount; i++)
+		{
+			if(CONFIG.gateway[i]->saddr == sip){
+				d_haddr = (CONFIG.arp.gateway[i])->haddr;
+			}
+		}
+		
+	}
+	
+
+	// if (is_gateway == 1 && CONFIG.arp.gateway)
+	// 	d_haddr = (CONFIG.arp.gateway)->haddr;
 	else {	
 		/* Longest prefix matching */
 		for (i = 0; i < CONFIG.arp.entries; i++) {
@@ -114,16 +127,15 @@ GetDestinationHWaddr(uint32_t dip, uint8_t is_gateway)
 			} else {
 				if ((dip & CONFIG.arp.entry[i].ip_mask) ==
 				    CONFIG.arp.entry[i].ip_masked) {
-					
 					if (CONFIG.arp.entry[i].prefix > prefix) {
 						d_haddr = CONFIG.arp.entry[i].haddr;
 						prefix = CONFIG.arp.entry[i].prefix;
 					}
+				}else{
 				}
 			}
 		}
 	}
-	
 	return d_haddr;
 }
 /*----------------------------------------------------------------------------*/
@@ -177,13 +189,25 @@ RegisterARPEntry(uint32_t ip, const unsigned char *haddr)
 	memcpy(CONFIG.arp.entry[idx].haddr, haddr, ETH_ALEN);
 	CONFIG.arp.entry[idx].ip_mask = -1;
 	CONFIG.arp.entry[idx].ip_masked = ip;
-
-	if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+	
+	int j;
+	for ( j = 0; j < ETH_NUM; j++)
+	{
+		if (CONFIG.gateway[j] && ((CONFIG.gateway[j])->daddr &
 			       CONFIG.arp.entry[idx].ip_mask) ==
-	    CONFIG.arp.entry[idx].ip_masked) {
-		CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
-		TRACE_CONFIG("ARP Gateway SET!\n");
+			CONFIG.arp.entry[idx].ip_masked) {
+			CONFIG.arp.gateway[j] = &CONFIG.arp.entry[idx];
+			TRACE_CONFIG("ARP Gateway SET!\n");
+			break;
+		}
 	}
+
+	// if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+	// 		       CONFIG.arp.entry[idx].ip_mask) ==
+	//     CONFIG.arp.entry[idx].ip_masked) {
+	// 	CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
+	// 	TRACE_CONFIG("ARP Gateway SET!\n");
+	// }
 	
 	CONFIG.arp.entries = idx + 1;
 
@@ -229,7 +253,7 @@ ProcessARPRequest(mtcp_manager_t mtcp,
 	unsigned char *temp;
 
 	/* register the arp entry if not exist */
-	temp = GetDestinationHWaddr(arph->ar_sip, 0);
+	temp = GetDestinationHWaddr(arph->ar_sip, 0, 0);
 	if (!temp) {
 		RegisterARPEntry(arph->ar_sip, arph->ar_sha);
 	}
@@ -247,7 +271,7 @@ ProcessARPReply(mtcp_manager_t mtcp, struct arphdr *arph, uint32_t cur_ts)
 	struct arp_queue_entry *ent;
 
 	/* register the arp entry if not exist */
-	temp = GetDestinationHWaddr(arph->ar_sip, 0);
+	temp = GetDestinationHWaddr(arph->ar_sip, 0, 0);
 	if (!temp) {
 		RegisterARPEntry(arph->ar_sip, arph->ar_sha);
 	}

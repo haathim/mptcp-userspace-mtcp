@@ -668,7 +668,8 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
 
 		/* for the INADDR_ANY, find the output interface for the destination
 		   and set the saddr_base as the ip address of the output interface */
-		nif_out = GetOutputInterface(daddr, &is_external);
+		printf("mtcp init rss\n");
+		nif_out = GetOutputInterface(daddr, saddr_base, &is_external);
 		if (nif_out < 0) {
 			errno = EINVAL;
 			TRACE_DBG("Could not determine nif idx!\n");
@@ -695,6 +696,7 @@ int
 mtcp_connect(mctx_t mctx, int sockid, 
 		const struct sockaddr *addr, socklen_t addrlen, mptcp_cb *mptcp_cb)
 {
+	printf("mtcp_connect called\n");
 	mtcp_manager_t mtcp;
 	socket_map_t socket;
 	tcp_stream *cur_stream;
@@ -734,7 +736,6 @@ mtcp_connect(mctx_t mctx, int sockid,
 	}
 	/* we only allow bind() for AF_INET address */
 	if (addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
-		//printf("Kakka is coming...\n");
 		TRACE_API("Socket %d: invalid argument!\n", sockid);
 		errno = EAFNOSUPPORT;
 		return -1;
@@ -776,7 +777,8 @@ mtcp_connect(mctx_t mctx, int sockid,
 						  mctx->cpu, num_queues, addr_in, &socket->saddr);
 		} else {
 			uint8_t is_external;
-			nif = GetOutputInterface(dip, &is_external);
+			printf("mtcp_connect .......\n");
+			nif = GetOutputInterface(dip, socket->saddr.sin_addr.s_addr, &is_external);
 			if (nif < 0) {
 				errno = EINVAL;
 				return -1;
@@ -835,6 +837,8 @@ mtcp_connect(mctx_t mctx, int sockid,
 	} else {
 
 		while (1) {
+			printf("Chu is coming...\n");
+			// This place looping indefintely
 			if (!cur_stream) {
 				TRACE_ERROR("STREAM DESTROYED\n");
 				errno = ETIMEDOUT;
@@ -1660,9 +1664,9 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
 			// create a tcpstream
 			// CreateTCPStream(mtcp, socket, socket->socktype, 
 			// 		socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
-
+			printf("Calling mtcp_connect\n");
 			int new_subflow_ret = mtcp_connect(mctx, new_subflow_sockid, (struct sockaddr *)&addr, sizeof(struct sockaddr_in), cur_stream->mptcp_cb);
-			//printf("Returned Value is: %d\n", new_subflow_ret);
+			printf("Returned Value from mtcp_connect is: %d\n", new_subflow_ret);
 			
 			// tcp_stream* subflow_tcp_stream = CreateTCPStream(mtcp, new_subflow_socket, new_subflow_socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, addr.sin_addr.s_addr, cur_stream->dport);
 			
