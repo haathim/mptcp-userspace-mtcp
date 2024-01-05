@@ -1,0 +1,4916 @@
+diff --git a/.gitignore b/.gitignore
+index 346712cc..18d86481 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -65,5 +65,3 @@ modules.order
+ Module.symvers
+ Mkfile.old
+ dkms.conf
+-dpdk-iface-kmod/.cache.mk
+-dpdk
+diff --git a/apps/example/Makefile.in b/apps/example/Makefile.in
+index 32933ac5..acfa6aea 100644
+--- a/apps/example/Makefile.in
++++ b/apps/example/Makefile.in
+@@ -1,7 +1,7 @@
+ # TODO: Make this Makefile.in pretty
+ 
+ TARGETS = epserver epwget
+-CC=@CC@ -g -O3 -Wall -fgnu89-inline
++CC=@CC@ -g -O3 -Wall -Werror -fgnu89-inline
+ DPDK=@DPDK@
+ PS=@PSIO@
+ NETMAP=@NETMAP@
+@@ -46,7 +46,6 @@ ifeq ($(DPDK),1)
+ DPDK_MACHINE_LINKER_FLAGS=$${RTE_SDK}/$${RTE_TARGET}/lib/ldflags.txt
+ DPDK_MACHINE_LDFLAGS=$(shell cat ${DPDK_MACHINE_LINKER_FLAGS})
+ LIBS += -g -O3 -pthread -lrt -march=native ${MTCP_FLD}/lib/libmtcp.a -lnuma -lmtcp -lpthread -lrt -ldl -lgmp -L${RTE_SDK}/${RTE_TARGET}/lib ${DPDK_MACHINE_LDFLAGS}
+-LIBS += -lssl -lcrypto -L/usr/lib/x86_64-linux-gnu
+ endif
+ 
+ # onvm-specific variables
+diff --git a/apps/example/config/arp.conf b/apps/example/config/arp.conf
+deleted file mode 100644
+index 0044b50e..00000000
+--- a/apps/example/config/arp.conf
++++ /dev/null
+@@ -1,11 +0,0 @@
+-# This file is to configure static arp tables.
+-# Rename this file to arp.conf and set the appropriate values.
+-# Please save this file as config/arp.conf. Put the config/
+-# directory in the same directory where the binary lies.
+-#
+-# (Destination IP address/IP_prefix) (Destination MAC address)
+-
+-ARP_ENTRY 2
+-192.168.60.13/32 08:00:27:7f:1b:fd
+-192.168.61.13/32 08:00:27:56:bd:57
+-# 192.168.60.13/32 08:00:27:7f:1b:fd
+\ No newline at end of file
+diff --git a/apps/example/config/route.conf b/apps/example/config/route.conf
+deleted file mode 100644
+index dcffd959..00000000
+--- a/apps/example/config/route.conf
++++ /dev/null
+@@ -1,19 +0,0 @@
+-# This file is routing table example of our testbed machine
+-# Copy this file to route.conf and give appropriate routes
+-# Please save this file as config/route.conf. Put the config/
+-# directory in the same directory where the binary lies.
+-#
+-# (Destination address)/(Prefix) (Device name)
+-#
+-#
+-# Add entry for default gateway route as:
+-# w.x.y.z/0 dpdk0
+-# Always put the default gateway route as the last entry.
+-# Make sure that the mask (Prefix) is set to 0. For example,
+-# if the default gateway IP address is 10.0.0.10, then the
+-# entry will be:
+-# 10.0.0.10/0 dpdk0
+-
+-ROUTES 2 2
+-192.168.60.13/0 192.168.60.12 dpdk0
+-192.168.61.13/0 192.168.61.12 dpdk1
+diff --git a/apps/example/epserver.c b/apps/example/epserver.c
+index 6df4b590..0ed0be77 100644
+--- a/apps/example/epserver.c
++++ b/apps/example/epserver.c
+@@ -24,7 +24,6 @@
+ #include "netlib.h"
+ #include "debug.h"
+ 
+-
+ #define MAX_FLOW_NUM  (10000)
+ 
+ #define RCVBUF_SIZE (2*1024)
+@@ -186,116 +185,100 @@ SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *s
+ 	return sent;
+ }
+ /*----------------------------------------------------------------------------*/
+-static int
++static int 
+ HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
+ {
+-        printf("Inside HandleReadEvent\n");
+-        struct mtcp_epoll_event ev;
+-        char buf[HTTP_HEADER_LEN];
+-        char url[URL_LEN];
+-        char response[HTTP_HEADER_LEN];
+-        int scode;                                              // status code
+-        time_t t_now;
+-        char t_str[128];
+-        char keepalive_str[128];
+-        int rd;
+-        int i;
+-        int len;
+-        int sent;
+-
+-        /* HTTP request handling */
+-        rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
+-        if (rd <= 0) { 
+-                return rd;
+-        }
+-        memcpy(sv->request + sv->recv_len, 
+-                        (char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
+-        sv->recv_len += rd; 
+-        //sv->request[rd] = '\0';
+-        //fprintf(stderr, "HTTP Request: \n%s", request);
+-        printf("Inside HandleReadEvent 1\n");
+-        // sv->request_len = find_http_header(sv->request, sv->recv_len);
+-        // if (sv->request_len <= 0) {
+-        //         TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
+-        //                         "read bytes: %d, recv_len: %d, "
+-        //                         "request_len: %d, strlen: %ld, request: \n%s\n",
+-        //                         sockid, rd, sv->recv_len, 
+-        //                         sv->request_len, strlen(sv->request), sv->request);
+-        //         return rd;
+-        // }
+-
+-        printf("Inside HandleReadEvent 2\n");
+-        // http_get_url(sv->request, sv->request_len, url, URL_LEN);
+-        // TRACE_APP("Socket %d URL: %s\n", sockid, url);
+-        // sprintf(sv->fname, "%s%s", www_main, url);
+-        // TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
+-
+-        printf("Inside HandleReadEvent 3\n");
+-        sv->keep_alive = FALSE;
+-        // if (http_header_str_val(sv->request, "Connection: ",
+-        //                         strlen("Connection: "), keepalive_str, 128)) {
+-        //         if (strstr(keepalive_str, "Keep-Alive")) {
+-        //                 sv->keep_alive = TRUE;
+-        //         } else if (strstr(keepalive_str, "Close")) {
+-        //                 sv->keep_alive = FALSE;
+-        //         }
+-        // }
+-
+-        printf("Inside HandleReadEvent 4\n");
+-        /* Find file in cache */
+-        // scode = 404;
+-        // for (i = 0; i < nfiles; i++) {
+-        //         if (strcmp(sv->fname, fcache[i].fullname) == 0) {
+-        //                 sv->fsize = fcache[i].size;
+-        //                 sv->fidx = i;
+-        //                 scode = 200;
+-        //                 break;
+-        //         }
+-        // }
+-        // TRACE_APP("Socket %d File size: %ld (%ldMB)\n",
+-                        // sockid, sv->fsize, sv->fsize / 1024 / 1024);
+-
+-        printf("Inside HandleReadEvent 5\n");
+-        /* Response header handling */
+-        // time(&t_now);
+-        // strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
+-        // if (sv->keep_alive)
+-        //         sprintf(keepalive_str, "Keep-Alive");
+-        // else
+-        //         sprintf(keepalive_str, "Close");
+-
+-        printf("Inside HandleReadEvent 6\n");
+-        // sprintf(response, "HTTP/1.1 %d %s\r\n"
+-        //                 "Date: %s\r\n"
+-        //                 "Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
+-        //                 "Content-Length: %ld\r\n"
+-        //                 "Connection: %s\r\n\r\n",
+-        //                 scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
+-
+-        printf("Inside HandleReadEvent 1\n");
+-        // set response to "I have recieved your message"
+-        sprintf(response, "I have recieved your message");
+-        len = strlen(response);
+-        // TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
+-        printf("Before mtcp_write\n");
+-        sent = mtcp_write(ctx->mctx, sockid, response, len);
+-        printf("After mtcp_write\n");
+-        // TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n",
+-                        //sockid, len, sent);
+-        assert(sent == len); 
+-        // sv->rspheader_sent = TRUE;
+-
+-        ev.events = MTCP_EPOLLIN | MTCP_EPOLLOUT;
+-        ev.data.sockid = sockid;
+-        mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+-
+-        printf("Inside HandleReadEvent 7\n");
+-        SendUntilAvailable(ctx, sockid, sv);
+-        printf("Inside HandleReadEvent 8\n");
+-
+-        return rd;
+-}
++	struct mtcp_epoll_event ev;
++	char buf[HTTP_HEADER_LEN];
++	char url[URL_LEN];
++	char response[HTTP_HEADER_LEN];
++	int scode;						// status code
++	time_t t_now;
++	char t_str[128];
++	char keepalive_str[128];
++	int rd;
++	int i;
++	int len;
++	int sent;
+ 
++	/* HTTP request handling */
++	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
++	if (rd <= 0) {
++		return rd;
++	}
++	memcpy(sv->request + sv->recv_len, 
++			(char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
++	sv->recv_len += rd;
++	//sv->request[rd] = '\0';
++	//fprintf(stderr, "HTTP Request: \n%s", request);
++	sv->request_len = find_http_header(sv->request, sv->recv_len);
++	if (sv->request_len <= 0) {
++		TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
++				"read bytes: %d, recv_len: %d, "
++				"request_len: %d, strlen: %ld, request: \n%s\n", 
++				sockid, rd, sv->recv_len, 
++				sv->request_len, strlen(sv->request), sv->request);
++		return rd;
++	}
++
++	http_get_url(sv->request, sv->request_len, url, URL_LEN);
++	TRACE_APP("Socket %d URL: %s\n", sockid, url);
++	sprintf(sv->fname, "%s%s", www_main, url);
++	TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
++
++	sv->keep_alive = FALSE;
++	if (http_header_str_val(sv->request, "Connection: ", 
++				strlen("Connection: "), keepalive_str, 128)) {	
++		if (strstr(keepalive_str, "Keep-Alive")) {
++			sv->keep_alive = TRUE;
++		} else if (strstr(keepalive_str, "Close")) {
++			sv->keep_alive = FALSE;
++		}
++	}
++
++	/* Find file in cache */
++	scode = 404;
++	for (i = 0; i < nfiles; i++) {
++		if (strcmp(sv->fname, fcache[i].fullname) == 0) {
++			sv->fsize = fcache[i].size;
++			sv->fidx = i;
++			scode = 200;
++			break;
++		}
++	}
++	TRACE_APP("Socket %d File size: %ld (%ldMB)\n", 
++			sockid, sv->fsize, sv->fsize / 1024 / 1024);
++
++	/* Response header handling */
++	time(&t_now);
++	strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
++	if (sv->keep_alive)
++		sprintf(keepalive_str, "Keep-Alive");
++	else
++		sprintf(keepalive_str, "Close");
++
++	sprintf(response, "HTTP/1.1 %d %s\r\n"
++			"Date: %s\r\n"
++			"Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
++			"Content-Length: %ld\r\n"
++			"Connection: %s\r\n\r\n", 
++			scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
++	len = strlen(response);
++	TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
++	sent = mtcp_write(ctx->mctx, sockid, response, len);
++	TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n", 
++			sockid, len, sent);
++	assert(sent == len);
++	sv->rspheader_sent = TRUE;
++
++	ev.events = MTCP_EPOLLIN | MTCP_EPOLLOUT;
++	ev.data.sockid = sockid;
++	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
++
++	SendUntilAvailable(ctx, sockid, sv);
++
++	return rd;
++}
+ /*----------------------------------------------------------------------------*/
+ int 
+ AcceptConnection(struct thread_context *ctx, int listener)
+@@ -320,7 +303,6 @@ AcceptConnection(struct thread_context *ctx, int listener)
+ 		ev.data.sockid = c;
+ 		mtcp_setsock_nonblock(ctx->mctx, c);
+ 		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, c, &ev);
+-		printf("Socket registered!\n");
+ 		TRACE_APP("Socket %d registered.\n", c);
+ 
+ 	} else {
+@@ -405,7 +387,7 @@ CreateListeningSocket(struct thread_context *ctx)
+ 	/* bind to port 80 */
+ 	saddr.sin_family = AF_INET;
+ 	saddr.sin_addr.s_addr = INADDR_ANY;
+-	saddr.sin_port = htons(12345);
++	saddr.sin_port = htons(80);
+ 	ret = mtcp_bind(ctx->mctx, listener, 
+ 			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
+ 	if (ret < 0) {
+@@ -498,20 +480,16 @@ RunServerThread(void *arg)
+ 						&ctx->svars[events[i].data.sockid]);
+ 
+ 			} else if (events[i].events & MTCP_EPOLLIN) {
+-				printf("Got an EPOLLIN!\n");
+ 				ret = HandleReadEvent(ctx, events[i].data.sockid, 
+ 						&ctx->svars[events[i].data.sockid]);
+ 
+ 				if (ret == 0) {
+-					printf("Got ret ==0!\n");
+ 					/* connection closed by remote host */
+ 					CloseConnection(ctx, events[i].data.sockid, 
+ 							&ctx->svars[events[i].data.sockid]);
+ 				} else if (ret < 0) {
+-					printf("Got ret <0!\n");
+ 					/* if not EAGAIN, it's an error */
+ 					if (errno != EAGAIN) {
+-						printf("Got EAGAIN!\n");
+ 						CloseConnection(ctx, events[i].data.sockid, 
+ 								&ctx->svars[events[i].data.sockid]);
+ 					}
+@@ -534,9 +512,7 @@ RunServerThread(void *arg)
+ 		/* if do_accept flag is set, accept connections */
+ 		if (do_accept) {
+ 			while (1) {
+-				printf("Connection Going to get Accepted!\n");
+ 				ret = AcceptConnection(ctx, listener);
+-				printf("Connection Accepted!\n");
+ 				if (ret < 0)
+ 					break;
+ 			}
+diff --git a/apps/example/epserver.conf b/apps/example/epserver.conf
+index 67206d79..0855eacb 100644
+--- a/apps/example/epserver.conf
++++ b/apps/example/epserver.conf
+@@ -65,10 +65,10 @@ port = dpdk0
+ #max_num_buffers = 10000
+ 
+ # Receive buffer size of sockets; if not set: rcvbuf = sndbuf
+-rcvbuf = 512
++rcvbuf = 8192
+ 
+ # Send buffer size of sockets; if not set: sndbuf = rcvbuf
+-sndbuf = 512
++sndbuf = 8192
+ 
+ # if sndbuf & rcvbuf not set: sndbuf = rcvbuf = 8192
+ 
+@@ -85,7 +85,7 @@ tcp_timewait = 0
+ #stat_print = xge0
+ #stat_print = xge1
+ #------ DPDK ports -------#
+-#stat_print = dpdk0
++stat_print = dpdk0
+ #stat_print = dpdk0 dpdk1
+ 
+ #######################################################
+diff --git a/apps/example/epwget.c b/apps/example/epwget.c
+index 8ce1ddac..56e73c25 100644
+--- a/apps/example/epwget.c
++++ b/apps/example/epwget.c
+@@ -195,9 +195,8 @@ CreateConnection(thread_context_t ctx)
+ 	addr.sin_port = dport;
+ 	
+ 	ret = mtcp_connect(mctx, sockid, 
+-			(struct sockaddr *)&addr, sizeof(struct sockaddr_in), 0);
++			(struct sockaddr *)&addr, sizeof(struct sockaddr_in));
+ 	if (ret < 0) {
+-		printf("Hello!!!!\n");
+ 		if (errno != EINPROGRESS) {
+ 			perror("mtcp_connect");
+ 			mtcp_close(mctx, sockid);
+@@ -235,7 +234,7 @@ CloseConnection(thread_context_t ctx, int sockid)
+ static inline int 
+ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
+ {
+-	// char request[HTTP_HEADER_LEN];
++	char request[HTTP_HEADER_LEN];
+ 	struct mtcp_epoll_event ev;
+ 	int wr;
+ 	int len;
+@@ -244,26 +243,16 @@ SendHTTPRequest(thread_context_t ctx, int sockid, struct wget_vars *wv)
+ 	wv->recv = 0;
+ 	wv->header_len = wv->file_len = 0;
+ 
+-	char *request = "Hello! I am client.\n";
+-
+-// 	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
+-// 			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
+-// 			"Accept: */*\r\n"
+-// 			"Host: %s\r\n"
+-// //			"Connection: Keep-Alive\r\n\r\n", 
+-// 			"Connection: Close\r\n\r\n", 
+-// 			url, host);
+-
+-	// snprintf(request, strlen(hardCodedReq), hardCodedReq);
++	snprintf(request, HTTP_HEADER_LEN, "GET %s HTTP/1.0\r\n"
++			"User-Agent: Wget/1.12 (linux-gnu)\r\n"
++			"Accept: */*\r\n"
++			"Host: %s\r\n"
++//			"Connection: Keep-Alive\r\n\r\n", 
++			"Connection: Close\r\n\r\n", 
++			url, host);
+ 	len = strlen(request);
+-	int i;
+-	for ( i = 0; i < 500; i++)
+-	{
+-		wr = mtcp_write(ctx->mctx, sockid, request, len);
+ 
+-	}
+-	
+-	// wr = mtcp_write(ctx->mctx, sockid, request, len);
++	wr = mtcp_write(ctx->mctx, sockid, request, len);
+ 	if (wr < len) {
+ 		TRACE_ERROR("Socket %d: Sending HTTP request failed. "
+ 				"try: %d, sent: %d\n", sockid, len, wr);
+@@ -351,110 +340,108 @@ HandleReadEvent(thread_context_t ctx, int sockid, struct wget_vars *wv)
+ 				sockid, rd, wv->recv + rd, 
+ 				wv->headerset, wv->header_len, wv->file_len);
+ 
+-		printf("Server says: %s\n", buf);
+-
+ 		pbuf = buf;
+-// 		if (!wv->headerset) {
+-// 			copy_len = MIN(rd, HTTP_HEADER_LEN - wv->resp_len);
+-// 			memcpy(wv->response + wv->resp_len, buf, copy_len);
+-// 			wv->resp_len += copy_len;
+-// 			wv->header_len = find_http_header(wv->response, wv->resp_len);
+-// 			if (wv->header_len > 0) {
+-// 				wv->response[wv->header_len] = '\0';
+-// 				wv->file_len = http_header_long_val(wv->response, 
+-// 						CONTENT_LENGTH_HDR, sizeof(CONTENT_LENGTH_HDR) - 1);
+-// 				if (wv->file_len < 0) {
+-// 					/* failed to find the Content-Length field */
+-// 					wv->recv += rd;
+-// 					rd = 0;
+-// 					CloseConnection(ctx, sockid);
+-// 					return 0;
+-// 				}
+-
+-// 				TRACE_APP("Socket %d Parsed response header. "
+-// 						"Header length: %u, File length: %lu (%luMB)\n", 
+-// 						sockid, wv->header_len, 
+-// 						wv->file_len, wv->file_len / 1024 / 1024);
+-// 				wv->headerset = TRUE;
+-// 				wv->recv += (rd - (wv->resp_len - wv->header_len));
++		if (!wv->headerset) {
++			copy_len = MIN(rd, HTTP_HEADER_LEN - wv->resp_len);
++			memcpy(wv->response + wv->resp_len, buf, copy_len);
++			wv->resp_len += copy_len;
++			wv->header_len = find_http_header(wv->response, wv->resp_len);
++			if (wv->header_len > 0) {
++				wv->response[wv->header_len] = '\0';
++				wv->file_len = http_header_long_val(wv->response, 
++						CONTENT_LENGTH_HDR, sizeof(CONTENT_LENGTH_HDR) - 1);
++				if (wv->file_len < 0) {
++					/* failed to find the Content-Length field */
++					wv->recv += rd;
++					rd = 0;
++					CloseConnection(ctx, sockid);
++					return 0;
++				}
++
++				TRACE_APP("Socket %d Parsed response header. "
++						"Header length: %u, File length: %lu (%luMB)\n", 
++						sockid, wv->header_len, 
++						wv->file_len, wv->file_len / 1024 / 1024);
++				wv->headerset = TRUE;
++				wv->recv += (rd - (wv->resp_len - wv->header_len));
+ 				
+-// 				pbuf += (rd - (wv->resp_len - wv->header_len));
+-// 				rd = (wv->resp_len - wv->header_len);
+-// 				//printf("Successfully parse header.\n");
+-// 				//fflush(stdout);
+-
+-// 			} else {
+-// 				/* failed to parse response header */
+-// #if 0
+-// 				printf("[CPU %d] Socket %d Failed to parse response header."
+-// 						" Data: \n%s\n", ctx->core, sockid, wv->response);
+-// 				fflush(stdout);
+-// #endif
+-// 				wv->recv += rd;
+-// 				rd = 0;
+-// 				ctx->stat.errors++;
+-// 				ctx->errors++;
+-// 				CloseConnection(ctx, sockid);
+-// 				return 0;
+-// 			}
+-// 			//pbuf += wv->header_len;
+-// 			//wv->recv += wv->header_len;
+-// 			//rd -= wv->header_len;
+-// 		}
+-// 		wv->recv += rd;
++				pbuf += (rd - (wv->resp_len - wv->header_len));
++				rd = (wv->resp_len - wv->header_len);
++				//printf("Successfully parse header.\n");
++				//fflush(stdout);
++
++			} else {
++				/* failed to parse response header */
++#if 0
++				printf("[CPU %d] Socket %d Failed to parse response header."
++						" Data: \n%s\n", ctx->core, sockid, wv->response);
++				fflush(stdout);
++#endif
++				wv->recv += rd;
++				rd = 0;
++				ctx->stat.errors++;
++				ctx->errors++;
++				CloseConnection(ctx, sockid);
++				return 0;
++			}
++			//pbuf += wv->header_len;
++			//wv->recv += wv->header_len;
++			//rd -= wv->header_len;
++		}
++		wv->recv += rd;
+ 		
+-// 		if (fio && wv->fd > 0) {
+-// 			int wr = 0;
+-// 			while (wr < rd) {
+-// 				int _wr = write(wv->fd, pbuf + wr, rd - wr);
+-// 				assert (_wr == rd - wr);
+-// 				 if (_wr < 0) {
+-// 					 perror("write");
+-// 					 TRACE_ERROR("Failed to write.\n");
+-// 					 assert(0);
+-// 					 break;
+-// 				 }
+-// 				 wr += _wr;	
+-// 				 wv->write += _wr;
+-// 			}
+-// 		}
++		if (fio && wv->fd > 0) {
++			int wr = 0;
++			while (wr < rd) {
++				int _wr = write(wv->fd, pbuf + wr, rd - wr);
++				assert (_wr == rd - wr);
++				 if (_wr < 0) {
++					 perror("write");
++					 TRACE_ERROR("Failed to write.\n");
++					 assert(0);
++					 break;
++				 }
++				 wr += _wr;	
++				 wv->write += _wr;
++			}
++		}
+ 		
+-// 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
+-// 			break;
+-// 		}
+-// 	}
+-
+-// 	if (rd > 0) {
+-// 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
+-// 			TRACE_APP("Socket %d Done Write: "
+-// 					"header: %u file: %lu recv: %lu write: %lu\n", 
+-// 					sockid, wv->header_len, wv->file_len, 
+-// 					wv->recv - wv->header_len, wv->write);
+-// 			DownloadComplete(ctx, sockid, wv);
+-
+-// 			return 0;
+-// 		}
+-
+-// 	} else if (rd == 0) {
+-// 		/* connection closed by remote host */
+-// 		TRACE_DBG("Socket %d connection closed with server.\n", sockid);
+-
+-// 		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
+-// 			DownloadComplete(ctx, sockid, wv);
+-// 		} else {
+-// 			ctx->stat.errors++;
+-// 			ctx->incompletes++;
+-// 			CloseConnection(ctx, sockid);
+-// 		}
+-
+-// 	} else if (rd < 0) {
+-// 		if (errno != EAGAIN) {
+-// 			TRACE_DBG("Socket %d: mtcp_read() error %s\n", 
+-// 					sockid, strerror(errno));
+-// 			ctx->stat.errors++;
+-// 			ctx->errors++;
+-// 			CloseConnection(ctx, sockid);
+-// 		}
++		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
++			break;
++		}
++	}
++
++	if (rd > 0) {
++		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
++			TRACE_APP("Socket %d Done Write: "
++					"header: %u file: %lu recv: %lu write: %lu\n", 
++					sockid, wv->header_len, wv->file_len, 
++					wv->recv - wv->header_len, wv->write);
++			DownloadComplete(ctx, sockid, wv);
++
++			return 0;
++		}
++
++	} else if (rd == 0) {
++		/* connection closed by remote host */
++		TRACE_DBG("Socket %d connection closed with server.\n", sockid);
++
++		if (wv->header_len && (wv->recv >= wv->header_len + wv->file_len)) {
++			DownloadComplete(ctx, sockid, wv);
++		} else {
++			ctx->stat.errors++;
++			ctx->incompletes++;
++			CloseConnection(ctx, sockid);
++		}
++
++	} else if (rd < 0) {
++		if (errno != EAGAIN) {
++			TRACE_DBG("Socket %d: mtcp_read() error %s\n", 
++					sockid, strerror(errno));
++			ctx->stat.errors++;
++			ctx->errors++;
++			CloseConnection(ctx, sockid);
++		}
+ 	}
+ 
+ 	return 0;
+@@ -742,10 +729,11 @@ main(int argc, char **argv)
+ 		strncpy(host, argv[1], MAX_IP_STR_LEN);
+ 		strncpy(url, "/", 2);
+ 	}
++
+ 	conf_file = NULL;
+ 	process_cpu = -1;
+ 	daddr = inet_addr(host);
+-	dport = htons(atoi(argv[7]));
++	dport = htons(80);
+ 	saddr = INADDR_ANY;
+ 
+ 	total_flows = mystrtol(argv[2], 10);
+diff --git a/apps/example/epwget.conf b/apps/example/epwget.conf
+index c72e28c9..b425ad97 100644
+--- a/apps/example/epwget.conf
++++ b/apps/example/epwget.conf
+@@ -14,7 +14,7 @@ io = dpdk
+ # e.g. in case ./epwget is executed with `-N 4', the
+ # mtcp core will still invoke 8 mTCP threads if the
+ # following line is uncommented.
+-# num_cores = 2
++#num_cores = 8
+ 
+ # Number of memory channels per processor socket (dpdk-only)
+ num_mem_ch = 4
+@@ -39,9 +39,9 @@ num_mem_ch = 4
+ #port = xge0 xge1
+ #port = xge1
+ #------ DPDK ports -------#
+-# port = dpdk0
+-# port = dpdk1
+-port = dpdk0 dpdk1
++port = dpdk0
++#port = dpdk1
++#port = dpdk0 dpdk1
+ 
+ # Enable multi-process support
+ #multiprocess = 1
+@@ -79,7 +79,7 @@ tcp_timewait = 0
+ #stat_print = xge0
+ #stat_print = xge1
+ #------ DPDK ports -------#
+-# stat_print = dpdk0
++stat_print = dpdk0
+ #stat_print = dpdk0 dpdk1
+ 
+ #######################################################
+diff --git a/apps/example/normalclient.c b/apps/example/normalclient.c
+deleted file mode 100644
+index fd8d4c07..00000000
+--- a/apps/example/normalclient.c
++++ /dev/null
+@@ -1,62 +0,0 @@
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <string.h>
+-#include <unistd.h>
+-#include <arpa/inet.h>
+-
+-#define SERVER_IP "192.168.60.3"
+-#define SERVER_PORT 12345
+-
+-int main() {
+-
+-    
+-    int sockfd;
+-    struct sockaddr_in server_addr;
+-
+-    // Create socket
+-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+-    if (sockfd == -1) {
+-        perror("Socket creation failed");
+-        return 1;
+-    }
+-
+-    // Configure server address
+-    server_addr.sin_family = AF_INET;
+-    server_addr.sin_port = htons(SERVER_PORT);
+-    server_addr.sin_addr.s_addr = inet_addr(SERVER_IP);
+-
+-    // Connect to the server
+-    if (connect(sockfd, (struct sockaddr*)&server_addr, sizeof(server_addr)) == -1) {
+-        perror("Connection failed");
+-        close(sockfd);
+-        return 1;
+-    }
+-
+-    char message1[] = "Hello, server! This is message 1.";
+-    char message2[] = "Hi again, server! This is message 2.";
+-    char buffer[1024];
+-    ssize_t bytes_received;
+-
+-    // Send and receive for message 1
+-    send(sockfd, message1, strlen(message1), 0);
+-    printf("Sent: %s\n", message1);
+-    bytes_received = recv(sockfd, buffer, sizeof(buffer), 0);
+-    if (bytes_received > 0) {
+-        buffer[bytes_received] = '\0';
+-        printf("Received: %s\n", buffer);
+-    }
+-
+-    // Send and receive for message 2
+-    send(sockfd, message2, strlen(message2), 0);
+-    printf("Sent: %s\n", message2);
+-    bytes_received = recv(sockfd, buffer, sizeof(buffer), 0);
+-    if (bytes_received > 0) {
+-        buffer[bytes_received] = '\0';
+-        printf("Received: %s\n", buffer);
+-    }
+-
+-    // Close the socket
+-    close(sockfd);
+-
+-    return 0;
+-}
+\ No newline at end of file
+diff --git a/apps/example/old_epserver.c b/apps/example/old_epserver.c
+deleted file mode 100644
+index 73515324..00000000
+--- a/apps/example/old_epserver.c
++++ /dev/null
+@@ -1,737 +0,0 @@
+-#define _LARGEFILE64_SOURCE
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <unistd.h>
+-#include <stdint.h>
+-#include <sys/types.h>
+-#include <sys/stat.h>
+-#include <sys/socket.h>
+-#include <netinet/in.h>
+-#include <arpa/inet.h>
+-#include <fcntl.h>
+-#include <dirent.h>
+-#include <string.h>
+-#include <time.h>
+-#include <pthread.h>
+-#include <signal.h>
+-#include <limits.h>
+-
+-#include <mtcp_api.h>
+-#include <mtcp_epoll.h>
+-
+-#include "cpu.h"
+-#include "http_parsing.h"
+-#include "netlib.h"
+-#include "debug.h"
+-
+-
+-#define MAX_FLOW_NUM  (10000)
+-
+-#define RCVBUF_SIZE (2*1024)
+-#define SNDBUF_SIZE (8*1024)
+-
+-#define MAX_EVENTS (MAX_FLOW_NUM * 3)
+-
+-#define HTTP_HEADER_LEN 1024
+-#define URL_LEN 128
+-
+-#define MAX_FILES 30
+-
+-#define NAME_LIMIT 256
+-#define FULLNAME_LIMIT 512
+-
+-#ifndef TRUE
+-#define TRUE (1)
+-#endif
+-
+-#ifndef FALSE
+-#define FALSE (0)
+-#endif
+-
+-#ifndef ERROR
+-#define ERROR (-1)
+-#endif
+-
+-#define HT_SUPPORT FALSE
+-
+-#ifndef MAX_CPUS
+-#define MAX_CPUS		16
+-#endif
+-/*----------------------------------------------------------------------------*/
+-struct file_cache
+-{
+-	char name[NAME_LIMIT];
+-	char fullname[FULLNAME_LIMIT];
+-	uint64_t size;
+-	char *file;
+-};
+-/*----------------------------------------------------------------------------*/
+-struct server_vars
+-{
+-	char request[HTTP_HEADER_LEN];
+-	int recv_len;
+-	int request_len;
+-	long int total_read, total_sent;
+-	uint8_t done;
+-	uint8_t rspheader_sent;
+-	uint8_t keep_alive;
+-
+-	int fidx;						// file cache index
+-	char fname[NAME_LIMIT];				// file name
+-	long int fsize;					// file size
+-};
+-/*----------------------------------------------------------------------------*/
+-struct thread_context
+-{
+-	mctx_t mctx;
+-	int ep;
+-	struct server_vars *svars;
+-};
+-/*----------------------------------------------------------------------------*/
+-static int num_cores;
+-static int core_limit;
+-static pthread_t app_thread[MAX_CPUS];
+-static int done[MAX_CPUS];
+-static char *conf_file = NULL;
+-static int backlog = -1;
+-/*----------------------------------------------------------------------------*/
+-const char *www_main;
+-static struct file_cache fcache[MAX_FILES];
+-static int nfiles;
+-/*----------------------------------------------------------------------------*/
+-static int finished;
+-/*----------------------------------------------------------------------------*/
+-static char *
+-StatusCodeToString(int scode)
+-{
+-	switch (scode) {
+-		case 200:
+-			return "OK";
+-			break;
+-
+-		case 404:
+-			return "Not Found";
+-			break;
+-	}
+-
+-	return NULL;
+-}
+-/*----------------------------------------------------------------------------*/
+-void
+-CleanServerVariable(struct server_vars *sv)
+-{
+-	sv->recv_len = 0;
+-	sv->request_len = 0;
+-	sv->total_read = 0;
+-	sv->total_sent = 0;
+-	sv->done = 0;
+-	sv->rspheader_sent = 0;
+-	sv->keep_alive = 0;
+-}
+-/*----------------------------------------------------------------------------*/
+-void 
+-CloseConnection(struct thread_context *ctx, int sockid, struct server_vars *sv)
+-{
+-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_DEL, sockid, NULL);
+-	mtcp_close(ctx->mctx, sockid);
+-}
+-/*----------------------------------------------------------------------------*/
+-static int 
+-SendUntilAvailable(struct thread_context *ctx, int sockid, struct server_vars *sv)
+-{
+-	int ret;
+-	int sent;
+-	int len;
+-
+-	if (sv->done || !sv->rspheader_sent) {
+-		return 0;
+-	}
+-
+-	sent = 0;
+-	ret = 1;
+-	while (ret > 0) {
+-		len = MIN(SNDBUF_SIZE, sv->fsize - sv->total_sent);
+-		if (len <= 0) {
+-			break;
+-		}
+-		ret = mtcp_write(ctx->mctx, sockid,  
+-				fcache[sv->fidx].file + sv->total_sent, len);
+-		if (ret < 0) {
+-			TRACE_APP("Connection closed with client.\n");
+-			break;
+-		}
+-		TRACE_APP("Socket %d: mtcp_write try: %d, ret: %d\n", sockid, len, ret);
+-		sent += ret;
+-		sv->total_sent += ret;
+-	}
+-
+-	if (sv->total_sent >= fcache[sv->fidx].size) {
+-		struct mtcp_epoll_event ev;
+-		sv->done = TRUE;
+-		finished++;
+-
+-		if (sv->keep_alive) {
+-			/* if keep-alive connection, wait for the incoming request */
+-			ev.events = MTCP_EPOLLIN;
+-			ev.data.sockid = sockid;
+-			mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+-
+-			CleanServerVariable(sv);
+-		} else {
+-			/* else, close connection */
+-			CloseConnection(ctx, sockid, sv);
+-		}
+-	}
+-
+-	return sent;
+-}
+-/*----------------------------------------------------------------------------*/
+-static int 
+-HandleReadEvent(struct thread_context *ctx, int sockid, struct server_vars *sv)
+-{
+-	struct mtcp_epoll_event ev;
+-	char buf[HTTP_HEADER_LEN];
+-	char url[URL_LEN];
+-	char response[HTTP_HEADER_LEN];
+-	int scode;						// status code
+-	time_t t_now;
+-	char t_str[128];
+-	char keepalive_str[128];
+-	int rd;
+-	int i;
+-	int len;
+-	int sent;
+-
+-	/* HTTP request handling */
+-	rd = mtcp_read(ctx->mctx, sockid, buf, HTTP_HEADER_LEN);
+-	if (rd <= 0) {
+-		return rd;
+-	}
+-	memcpy(sv->request + sv->recv_len, 
+-			(char *)buf, MIN(rd, HTTP_HEADER_LEN - sv->recv_len));
+-	sv->recv_len += rd;
+-	//sv->request[rd] = '\0';
+-	//fprintf(stderr, "HTTP Request: \n%s", request);
+-	sv->request_len = find_http_header(sv->request, sv->recv_len);
+-	if (sv->request_len <= 0) {
+-		TRACE_ERROR("Socket %d: Failed to parse HTTP request header.\n"
+-				"read bytes: %d, recv_len: %d, "
+-				"request_len: %d, strlen: %ld, request: \n%s\n", 
+-				sockid, rd, sv->recv_len, 
+-				sv->request_len, strlen(sv->request), sv->request);
+-		return rd;
+-	}
+-
+-	http_get_url(sv->request, sv->request_len, url, URL_LEN);
+-	TRACE_APP("Socket %d URL: %s\n", sockid, url);
+-	sprintf(sv->fname, "%s%s", www_main, url);
+-	TRACE_APP("Socket %d File name: %s\n", sockid, sv->fname);
+-
+-	sv->keep_alive = FALSE;
+-	if (http_header_str_val(sv->request, "Connection: ", 
+-				strlen("Connection: "), keepalive_str, 128)) {	
+-		if (strstr(keepalive_str, "Keep-Alive")) {
+-			sv->keep_alive = TRUE;
+-		} else if (strstr(keepalive_str, "Close")) {
+-			sv->keep_alive = FALSE;
+-		}
+-	}
+-
+-	/* Find file in cache */
+-	scode = 404;
+-	for (i = 0; i < nfiles; i++) {
+-		if (strcmp(sv->fname, fcache[i].fullname) == 0) {
+-			sv->fsize = fcache[i].size;
+-			sv->fidx = i;
+-			scode = 200;
+-			break;
+-		}
+-	}
+-	TRACE_APP("Socket %d File size: %ld (%ldMB)\n", 
+-			sockid, sv->fsize, sv->fsize / 1024 / 1024);
+-
+-	/* Response header handling */
+-	time(&t_now);
+-	strftime(t_str, 128, "%a, %d %b %Y %X GMT", gmtime(&t_now));
+-	if (sv->keep_alive)
+-		sprintf(keepalive_str, "Keep-Alive");
+-	else
+-		sprintf(keepalive_str, "Close");
+-
+-	sprintf(response, "HTTP/1.1 %d %s\r\n"
+-			"Date: %s\r\n"
+-			"Server: Webserver on Middlebox TCP (Ubuntu)\r\n"
+-			"Content-Length: %ld\r\n"
+-			"Connection: %s\r\n\r\n", 
+-			scode, StatusCodeToString(scode), t_str, sv->fsize, keepalive_str);
+-	len = strlen(response);
+-	TRACE_APP("Socket %d HTTP Response: \n%s", sockid, response);
+-	sent = mtcp_write(ctx->mctx, sockid, response, len);
+-	TRACE_APP("Socket %d Sent response header: try: %d, sent: %d\n", 
+-			sockid, len, sent);
+-	assert(sent == len);
+-	sv->rspheader_sent = TRUE;
+-
+-	ev.events = MTCP_EPOLLIN | MTCP_EPOLLOUT;
+-	ev.data.sockid = sockid;
+-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_MOD, sockid, &ev);
+-
+-	SendUntilAvailable(ctx, sockid, sv);
+-
+-	return rd;
+-}
+-/*----------------------------------------------------------------------------*/
+-int 
+-AcceptConnection(struct thread_context *ctx, int listener)
+-{
+-	mctx_t mctx = ctx->mctx;
+-	struct server_vars *sv;
+-	struct mtcp_epoll_event ev;
+-	int c;
+-
+-	c = mtcp_accept(mctx, listener, NULL, NULL);
+-
+-	if (c >= 0) {
+-		if (c >= MAX_FLOW_NUM) {
+-			TRACE_ERROR("Invalid socket id %d.\n", c);
+-			return -1;
+-		}
+-
+-		sv = &ctx->svars[c];
+-		CleanServerVariable(sv);
+-		TRACE_APP("New connection %d accepted.\n", c);
+-		ev.events = MTCP_EPOLLIN;
+-		ev.data.sockid = c;
+-		mtcp_setsock_nonblock(ctx->mctx, c);
+-		mtcp_epoll_ctl(mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, c, &ev);
+-		TRACE_APP("Socket %d registered.\n", c);
+-
+-	} else {
+-		if (errno != EAGAIN) {
+-			TRACE_ERROR("mtcp_accept() error %s\n", 
+-					strerror(errno));
+-		}
+-	}
+-
+-	return c;
+-}
+-/*----------------------------------------------------------------------------*/
+-struct thread_context *
+-InitializeServerThread(int core)
+-{
+-	struct thread_context *ctx;
+-
+-	/* affinitize application thread to a CPU core */
+-#if HT_SUPPORT
+-	mtcp_core_affinitize(core + (num_cores / 2));
+-#else
+-	mtcp_core_affinitize(core);
+-#endif /* HT_SUPPORT */
+-
+-	ctx = (struct thread_context *)calloc(1, sizeof(struct thread_context));
+-	if (!ctx) {
+-		TRACE_ERROR("Failed to create thread context!\n");
+-		return NULL;
+-	}
+-
+-	/* create mtcp context: this will spawn an mtcp thread */
+-	ctx->mctx = mtcp_create_context(core);
+-	if (!ctx->mctx) {
+-		TRACE_ERROR("Failed to create mtcp context!\n");
+-		free(ctx);
+-		return NULL;
+-	}
+-
+-	/* create epoll descriptor */
+-	ctx->ep = mtcp_epoll_create(ctx->mctx, MAX_EVENTS);
+-	if (ctx->ep < 0) {
+-		mtcp_destroy_context(ctx->mctx);
+-		free(ctx);
+-		TRACE_ERROR("Failed to create epoll descriptor!\n");
+-		return NULL;
+-	}
+-
+-	/* allocate memory for server variables */
+-	ctx->svars = (struct server_vars *)
+-			calloc(MAX_FLOW_NUM, sizeof(struct server_vars));
+-	if (!ctx->svars) {
+-		mtcp_close(ctx->mctx, ctx->ep);
+-		mtcp_destroy_context(ctx->mctx);
+-		free(ctx);
+-		TRACE_ERROR("Failed to create server_vars struct!\n");
+-		return NULL;
+-	}
+-
+-	return ctx;
+-}
+-/*----------------------------------------------------------------------------*/
+-int 
+-CreateListeningSocket(struct thread_context *ctx)
+-{
+-	int listener;
+-	struct mtcp_epoll_event ev;
+-	struct sockaddr_in saddr;
+-	int ret;
+-
+-	/* create socket and set it as nonblocking */
+-	listener = mtcp_socket(ctx->mctx, AF_INET, SOCK_STREAM, 0);
+-	if (listener < 0) {
+-		TRACE_ERROR("Failed to create listening socket!\n");
+-		return -1;
+-	}
+-	ret = mtcp_setsock_nonblock(ctx->mctx, listener);
+-	if (ret < 0) {
+-		TRACE_ERROR("Failed to set socket in nonblocking mode.\n");
+-		return -1;
+-	}
+-
+-	/* bind to port 80 */
+-	saddr.sin_family = AF_INET;
+-	saddr.sin_addr.s_addr = INADDR_ANY;
+-	saddr.sin_port = htons(80);
+-	ret = mtcp_bind(ctx->mctx, listener, 
+-			(struct sockaddr *)&saddr, sizeof(struct sockaddr_in));
+-	if (ret < 0) {
+-		TRACE_ERROR("Failed to bind to the listening socket!\n");
+-		return -1;
+-	}
+-
+-	/* listen (backlog: can be configured) */
+-	ret = mtcp_listen(ctx->mctx, listener, backlog);
+-	if (ret < 0) {
+-		TRACE_ERROR("mtcp_listen() failed!\n");
+-		return -1;
+-	}
+-	
+-	/* wait for incoming accept events */
+-	ev.events = MTCP_EPOLLIN;
+-	ev.data.sockid = listener;
+-	mtcp_epoll_ctl(ctx->mctx, ctx->ep, MTCP_EPOLL_CTL_ADD, listener, &ev);
+-
+-	return listener;
+-}
+-/*----------------------------------------------------------------------------*/
+-void *
+-RunServerThread(void *arg)
+-{
+-	int core = *(int *)arg;
+-	struct thread_context *ctx;
+-	mctx_t mctx;
+-	int listener;
+-	int ep;
+-	struct mtcp_epoll_event *events;
+-	int nevents;
+-	int i, ret;
+-	int do_accept;
+-	
+-	/* initialization */
+-	ctx = InitializeServerThread(core);
+-	if (!ctx) {
+-		TRACE_ERROR("Failed to initialize server thread.\n");
+-		return NULL;
+-	}
+-	mctx = ctx->mctx;
+-	ep = ctx->ep;
+-
+-	events = (struct mtcp_epoll_event *)
+-			calloc(MAX_EVENTS, sizeof(struct mtcp_epoll_event));
+-	if (!events) {
+-		TRACE_ERROR("Failed to create event struct!\n");
+-		exit(-1);
+-	}
+-
+-	listener = CreateListeningSocket(ctx);
+-	if (listener < 0) {
+-		TRACE_ERROR("Failed to create listening socket.\n");
+-		exit(-1);
+-	}
+-
+-	while (!done[core]) {
+-		nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
+-		if (nevents < 0) {
+-			if (errno != EINTR)
+-				perror("mtcp_epoll_wait");
+-			break;
+-		}
+-
+-		do_accept = FALSE;
+-		for (i = 0; i < nevents; i++) {
+-
+-			if (events[i].data.sockid == listener) {
+-				/* if the event is for the listener, accept connection */
+-				do_accept = TRUE;
+-
+-			} else if (events[i].events & MTCP_EPOLLERR) {
+-				int err;
+-				socklen_t len = sizeof(err);
+-
+-				/* error on the connection */
+-				TRACE_APP("[CPU %d] Error on socket %d\n", 
+-						core, events[i].data.sockid);
+-				if (mtcp_getsockopt(mctx, events[i].data.sockid, 
+-						SOL_SOCKET, SO_ERROR, (void *)&err, &len) == 0) {
+-					if (err != ETIMEDOUT) {
+-						fprintf(stderr, "Error on socket %d: %s\n", 
+-								events[i].data.sockid, strerror(err));
+-					}
+-				} else {
+-					perror("mtcp_getsockopt");
+-				}
+-				CloseConnection(ctx, events[i].data.sockid, 
+-						&ctx->svars[events[i].data.sockid]);
+-
+-			} else if (events[i].events & MTCP_EPOLLIN) {
+-				ret = HandleReadEvent(ctx, events[i].data.sockid, 
+-						&ctx->svars[events[i].data.sockid]);
+-
+-				if (ret == 0) {
+-					/* connection closed by remote host */
+-					CloseConnection(ctx, events[i].data.sockid, 
+-							&ctx->svars[events[i].data.sockid]);
+-				} else if (ret < 0) {
+-					/* if not EAGAIN, it's an error */
+-					if (errno != EAGAIN) {
+-						CloseConnection(ctx, events[i].data.sockid, 
+-								&ctx->svars[events[i].data.sockid]);
+-					}
+-				}
+-
+-			} else if (events[i].events & MTCP_EPOLLOUT) {
+-				struct server_vars *sv = &ctx->svars[events[i].data.sockid];
+-				if (sv->rspheader_sent) {
+-					SendUntilAvailable(ctx, events[i].data.sockid, sv);
+-				} else {
+-					TRACE_APP("Socket %d: Response header not sent yet.\n", 
+-							events[i].data.sockid);
+-				}
+-
+-			} else {
+-				assert(0);
+-			}
+-		}
+-
+-		/* if do_accept flag is set, accept connections */
+-		if (do_accept) {
+-			while (1) {
+-				ret = AcceptConnection(ctx, listener);
+-				if (ret < 0)
+-					break;
+-			}
+-		}
+-
+-	}
+-
+-	/* destroy mtcp context: this will kill the mtcp thread */
+-	mtcp_destroy_context(mctx);
+-	pthread_exit(NULL);
+-
+-	return NULL;
+-}
+-/*----------------------------------------------------------------------------*/
+-void
+-SignalHandler(int signum)
+-{
+-	int i;
+-
+-	for (i = 0; i < core_limit; i++) {
+-		if (app_thread[i] == pthread_self()) {
+-			//TRACE_INFO("Server thread %d got SIGINT\n", i);
+-			done[i] = TRUE;
+-		} else {
+-			if (!done[i]) {
+-				pthread_kill(app_thread[i], signum);
+-			}
+-		}
+-	}
+-}
+-/*----------------------------------------------------------------------------*/
+-static void
+-printHelp(const char *prog_name)
+-{
+-	TRACE_CONFIG("%s -p <path_to_www/> -f <mtcp_conf_file> "
+-		     "[-N num_cores] [-c <per-process core_id>] [-h]\n",
+-		     prog_name);
+-	exit(EXIT_SUCCESS);
+-}
+-/*----------------------------------------------------------------------------*/
+-int 
+-main(int argc, char **argv)
+-{
+-	DIR *dir;
+-	struct dirent *ent;
+-	int fd;
+-	int ret;
+-	uint64_t total_read;
+-	struct mtcp_conf mcfg;
+-	int cores[MAX_CPUS];
+-	int process_cpu;
+-	int i, o;
+-
+-	num_cores = GetNumCPUs();
+-	core_limit = num_cores;
+-	process_cpu = -1;
+-	dir = NULL;
+-
+-	if (argc < 2) {
+-		TRACE_CONFIG("$%s directory_to_service\n", argv[0]);
+-		return FALSE;
+-	}
+-
+-	while (-1 != (o = getopt(argc, argv, "N:f:p:c:b:h"))) {
+-		switch (o) {
+-		case 'p':
+-			/* open the directory to serve */
+-			www_main = optarg;
+-			dir = opendir(www_main);
+-			if (!dir) {
+-				TRACE_CONFIG("Failed to open %s.\n", www_main);
+-				perror("opendir");
+-				return FALSE;
+-			}
+-			break;
+-		case 'N':
+-			core_limit = mystrtol(optarg, 10);
+-			if (core_limit > num_cores) {
+-				TRACE_CONFIG("CPU limit should be smaller than the "
+-					     "number of CPUs: %d\n", num_cores);
+-				return FALSE;
+-			}
+-			/** 
+-			 * it is important that core limit is set 
+-			 * before mtcp_init() is called. You can
+-			 * not set core_limit after mtcp_init()
+-			 */
+-			mtcp_getconf(&mcfg);
+-			mcfg.num_cores = core_limit;
+-			mtcp_setconf(&mcfg);
+-			break;
+-		case 'f':
+-			conf_file = optarg;
+-			break;
+-		case 'c':
+-			process_cpu = mystrtol(optarg, 10);
+-			if (process_cpu > core_limit) {
+-				TRACE_CONFIG("Starting CPU is way off limits!\n");
+-				return FALSE;
+-			}
+-			break;
+-		case 'b':
+-			backlog = mystrtol(optarg, 10);
+-			break;
+-		case 'h':
+-			printHelp(argv[0]);
+-			break;
+-		}
+-	}
+-	
+-	if (dir == NULL) {
+-		TRACE_CONFIG("You did not pass a valid www_path!\n");
+-		exit(EXIT_FAILURE);
+-	}
+-
+-	nfiles = 0;
+-	while ((ent = readdir(dir)) != NULL) {
+-		if (strcmp(ent->d_name, ".") == 0)
+-			continue;
+-		else if (strcmp(ent->d_name, "..") == 0)
+-			continue;
+-
+-		snprintf(fcache[nfiles].name, NAME_LIMIT, "%s", ent->d_name);
+-		snprintf(fcache[nfiles].fullname, FULLNAME_LIMIT, "%s/%s",
+-			 www_main, ent->d_name);
+-		fd = open(fcache[nfiles].fullname, O_RDONLY);
+-		if (fd < 0) {
+-			perror("open");
+-			continue;
+-		} else {
+-			fcache[nfiles].size = lseek64(fd, 0, SEEK_END);
+-			lseek64(fd, 0, SEEK_SET);
+-		}
+-
+-		fcache[nfiles].file = (char *)malloc(fcache[nfiles].size);
+-		if (!fcache[nfiles].file) {
+-			TRACE_CONFIG("Failed to allocate memory for file %s\n", 
+-				     fcache[nfiles].name);
+-			perror("malloc");
+-			continue;
+-		}
+-
+-		TRACE_INFO("Reading %s (%lu bytes)\n", 
+-				fcache[nfiles].name, fcache[nfiles].size);
+-		total_read = 0;
+-		while (1) {
+-			ret = read(fd, fcache[nfiles].file + total_read, 
+-					fcache[nfiles].size - total_read);
+-			if (ret < 0) {
+-				break;
+-			} else if (ret == 0) {
+-				break;
+-			}
+-			total_read += ret;
+-		}
+-		if (total_read < fcache[nfiles].size) {
+-			free(fcache[nfiles].file);
+-			continue;
+-		}
+-		close(fd);
+-		nfiles++;
+-
+-		if (nfiles >= MAX_FILES)
+-			break;
+-	}
+-
+-	finished = 0;
+-
+-	/* initialize mtcp */
+-	if (conf_file == NULL) {
+-		TRACE_CONFIG("You forgot to pass the mTCP startup config file!\n");
+-		exit(EXIT_FAILURE);
+-	}
+-
+-	ret = mtcp_init(conf_file);
+-	if (ret) {
+-		TRACE_CONFIG("Failed to initialize mtcp\n");
+-		exit(EXIT_FAILURE);
+-	}
+-
+-	mtcp_getconf(&mcfg);
+-	if (backlog > mcfg.max_concurrency) {
+-		TRACE_CONFIG("backlog can not be set larger than CONFIG.max_concurrency\n");
+-		return FALSE;
+-	}
+-
+-	/* if backlog is not specified, set it to 4K */
+-	if (backlog == -1) {
+-		backlog = 4096;
+-	}
+-	
+-	/* register signal handler to mtcp */
+-	mtcp_register_signal(SIGINT, SignalHandler);
+-
+-	TRACE_INFO("Application initialization finished.\n");
+-
+-	for (i = ((process_cpu == -1) ? 0 : process_cpu); i < core_limit; i++) {
+-		cores[i] = i;
+-		done[i] = FALSE;
+-		
+-		if (pthread_create(&app_thread[i], 
+-				   NULL, RunServerThread, (void *)&cores[i])) {
+-			perror("pthread_create");
+-			TRACE_CONFIG("Failed to create server thread.\n");
+-				exit(EXIT_FAILURE);
+-		}
+-		if (process_cpu != -1)
+-			break;
+-	}
+-	
+-	for (i = ((process_cpu == -1) ? 0 : process_cpu); i < core_limit; i++) {
+-		pthread_join(app_thread[i], NULL);
+-
+-		if (process_cpu != -1)
+-			break;
+-	}
+-	
+-	mtcp_destroy();
+-	closedir(dir);
+-	return 0;
+-}
+diff --git a/apps/example/old_server/server b/apps/example/old_server/server
+deleted file mode 100755
+index ae257b33..00000000
+Binary files a/apps/example/old_server/server and /dev/null differ
+diff --git a/apps/example/old_server/server.c b/apps/example/old_server/server.c
+deleted file mode 100644
+index 319032bf..00000000
+--- a/apps/example/old_server/server.c
++++ /dev/null
+@@ -1,266 +0,0 @@
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <string.h>
+-#include <arpa/inet.h>
+-#include <mtcp_api.h>
+-
+-#define PORT_NUM 12345
+-#define MAX_CONNECTIONS 3
+-
+-int main() {
+-    int ret;
+-    mctx_t mctx;
+-
+-    // Initialize mTCP
+-    ret = mtcp_init("server.conf");
+-    if (ret) {
+-        fprintf(stderr, "mtcp_init failed: %s\n", strerror(-ret));
+-        return -1;
+-    }
+-
+-    // Create mTCP context
+-    mctx = mtcp_create_context(0);
+-    if (!mctx) {
+-        fprintf(stderr, "mtcp_create_context failed\n");
+-        return -1;
+-    }
+-
+-    // Create a socket
+-    int listen_sock = mtcp_socket(mctx, AF_INET, SOCK_STREAM, 0);
+-    if (listen_sock < 0) {
+-        fprintf(stderr, "mtcp_socket failed: %s\n", strerror(-listen_sock));
+-        return -1;
+-    }
+-
+-    // Bind the socket
+-    struct sockaddr_in server_addr;
+-    memset(&server_addr, 0, sizeof(server_addr));
+-    server_addr.sin_family = AF_INET;
+-    server_addr.sin_port = htons(PORT_NUM);
+-    server_addr.sin_addr.s_addr = INADDR_ANY;
+-
+-    ret = mtcp_bind(mctx, listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+-    if (ret) {
+-        fprintf(stderr, "mtcp_bind failed: %s\n", strerror(-ret));
+-        return -1;
+-    }
+-
+-    // Listen for incoming connections
+-    ret = mtcp_listen(mctx, listen_sock, MAX_CONNECTIONS);
+-    if (ret) {
+-        fprintf(stderr, "mtcp_listen failed: %s\n", strerror(-ret));
+-        return -1;
+-    }
+-
+-    printf("Server listening on port %d...\n", PORT_NUM);
+-
+-    while (1) {
+-        // Accept a new client connection
+-        struct sockaddr_in client_addr;
+-        socklen_t client_addr_len = sizeof(client_addr);
+-        int client_sock = mtcp_accept(mctx, listen_sock, (struct sockaddr *)&client_addr, &client_addr_len);
+-        if (client_sock < 0) {
+-            fprintf(stderr, "mtcp_accept failed: %s\n", strerror(-client_sock));
+-            //continue;
+-	    exit(1);
+-        }
+-
+-        printf("Accepted a new connection from %s:%d\n",
+-               inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+-
+-        // Continuously receive and reply to client messages
+-        char buffer[1024];
+-        while (1) {
+-            ret = mtcp_recv(mctx, client_sock, buffer, sizeof(buffer) - 1, 0);
+-            if (ret <= 0) {
+-                fprintf(stderr, "mtcp_recv failed: %s\n", strerror(-ret));
+-                break;
+-            }
+-            buffer[ret] = '\0'; // Null-terminate received message
+-            printf("Received: %s\n", buffer);
+-
+-            // Modify the received message and send it back to the client
+-            char reply[1024];
+-            snprintf(reply, sizeof(reply), "Server says: %s", buffer);
+-
+-            ret = mtcp_write(mctx, client_sock, reply, strlen(reply));
+-            if (ret < 0) {
+-                perror("mtcp_write");
+-                return -1;
+-            }
+-        }
+-
+-        // Close the client socket
+-        mtcp_close(mctx, client_sock);
+-        printf("Connection closed with %s:%d\n",
+-               inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+-    }
+-
+-    // Close the listening socket and destroy the mTCP context
+-    mtcp_close(mctx, listen_sock);
+-    mtcp_destroy_context(mctx);
+-
+-    return 0;
+-}
+-
+-
+-
+-//#include <stdio.h>
+-//#include <stdlib.h>
+-//#include <string.h>
+-//#include <arpa/inet.h>
+-//#include <mtcp_api.h>
+-//#include <mtcp_epoll.h>
+-//#include <signal.h>
+-//
+-//#define PORT_NUM 12345
+-//#define MAX_CONNECTIONS 4
+-//#define MAX_EVENTS 3
+-//
+-//// Signal handler function
+-////void handle_ctrl_c(int sig) {
+-////    printf("CTRL+C received. Exiting...\n");
+-////    exit(0);
+-////}
+-//
+-//int main() {
+-//
+-//    // Set up the signal handler for SIGINT (CTRL+C)
+-//    //if (signal(SIGINT, handle_ctrl_c) == SIG_ERR) {
+-//    //    perror("Error setting up signal handler");
+-//    //    return 1;
+-//    //}
+-//
+-//    int ret, ep, i, client_sock;
+-//    mctx_t mctx;
+-//    struct mtcp_epoll_event ev, events[MAX_EVENTS];
+-//
+-//    // Initialize mTCP
+-//    ret = mtcp_init("server.conf");
+-//    if (ret) {
+-//        fprintf(stderr, "mtcp_init failed: %s\n", strerror(-ret));
+-//        return -1;
+-//    }
+-//
+-//    // Create mTCP context
+-//    mctx = mtcp_create_context(0);
+-//    if (!mctx) {
+-//        fprintf(stderr, "mtcp_create_context failed\n");
+-//        return -1;
+-//    }
+-//
+-//    // Create a socket
+-//    int listen_sock = mtcp_socket(mctx, AF_INET, SOCK_STREAM, 0);
+-//    if (listen_sock < 0) {
+-//        fprintf(stderr, "mtcp_socket failed: %s\n", strerror(-listen_sock));
+-//        return -1;
+-//    }
+-//
+-//    // Bind the socket
+-//    struct sockaddr_in server_addr;
+-//    memset(&server_addr, 0, sizeof(server_addr));
+-//    server_addr.sin_family = AF_INET;
+-//    server_addr.sin_port = htons(PORT_NUM);
+-//    server_addr.sin_addr.s_addr = INADDR_ANY;
+-//
+-//    ret = mtcp_bind(mctx, listen_sock, (struct sockaddr*)&server_addr, sizeof(server_addr));
+-//    if (ret) {
+-//        fprintf(stderr, "mtcp_bind failed: %s\n", strerror(-ret));
+-//        return -1;
+-//    }
+-//
+-//    // Listen for incoming connections
+-//    ret = mtcp_listen(mctx, listen_sock, MAX_CONNECTIONS);
+-//    if (ret) {
+-//        fprintf(stderr, "mtcp_listen failed: %s\n", strerror(-ret));
+-//        return -1;
+-//    }
+-//
+-//    /* create epoll queue & enlist listening port in epoll queue */
+-//	ep = mtcp_epoll_create(mctx, MAX_EVENTS);
+-//	ev.events = MTCP_EPOLLIN; ev.data.sockid = listen_sock;
+-//	mtcp_epoll_ctl(mctx, ep, MTCP_EPOLL_CTL_ADD, listen_sock, &ev);
+-//
+-//    printf("Server listening on port %d...\n", PORT_NUM);
+-//
+-//    char buffer[2048];
+-//
+-//    while (1) {
+-//
+-//	int nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
+-//	printf("No of events: %d\n", nevents);
+-//	for (i = 0; i < nevents; i++) {
+-//		if (events[i].data.sockid == listen_sock) {
+-//	            client_sock = mtcp_accept(mctx, listen_sock, NULL, NULL);
+-//		    //ret = mtcp_recv(mctx, client_sock, buffer, sizeof(buffer) - 1, 0);
+-//		    ret = mtcp_read(mctx, client_sock, buffer, sizeof(buffer) - 1);
+-//		    if (ret <= 0) {
+-//			fprintf(stderr, "mtcp_recv failed: %s\n", strerror(-ret));
+-//			break;
+-//		    }
+-//		    buffer[ret] = '\0';  // Null-terminate received message
+-//		    printf("Received: %s\n", buffer);
+-//
+-//		    // Modify the received message and send it back to the client
+-//		    char reply[1024];
+-//		    snprintf(reply, sizeof(reply), "Server says: %s", buffer);
+-//
+-//			ret = mtcp_write(mctx, client_sock, reply, strlen(reply));
+-//			if (ret < 0) {
+-//				perror("mtcp_write");
+-//				return -1;
+-//			}
+-//		} else if (events[i].events == MTCP_EPOLLIN) {
+-//			printf("IT'S A EPOLLIN EVENT!\n");
+-//		}
+-//
+-//	}
+-//	 
+-//        // Accept a new client connection
+-//        //struct sockaddr_in client_addr;
+-//        //socklen_t client_addr_len = sizeof(client_addr);
+-//        //int client_sock = mtcp_accept(mctx, listen_sock, (struct sockaddr*)&client_addr, &client_addr_len);
+-//        //int client_sock = mtcp_accept(mctx, listen_sock, NULL, NULL);
+-//        //if (client_sock < 0) {
+-//        //    fprintf(stderr, "mtcp_accept failed: %s\n", strerror(-client_sock));
+-//        //    continue;
+-//        //}
+-//
+-//        //printf("Accepted a new connection from %s:%d\n",
+-//         //      inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+-//
+-//        // Continuously receive and reply to client messages
+-//        //char buffer[1024];
+-//        //while (1) {
+-//        //    ret = mtcp_recv(mctx, client_sock, buffer, sizeof(buffer) - 1, 0);
+-//        //    if (ret <= 0) {
+-//        //        fprintf(stderr, "mtcp_recv failed: %s\n", strerror(-ret));
+-//        //        break;
+-//        //    }
+-//        //    buffer[ret] = '\0';  // Null-terminate received message
+-//        //    printf("Received: %s\n", buffer);
+-//
+-//        //    // Modify the received message and send it back to the client
+-//        //    char reply[1024];
+-//        //    snprintf(reply, sizeof(reply), "Server says: %s", buffer);
+-//
+-//	//        ret = mtcp_write(mctx, client_sock, reply, strlen(reply));
+-//	//	if (ret < 0) {
+-//	//		perror("mtcp_write");
+-//	//		return -1;
+-//	//	}
+-//        //}
+-//
+-//        // Close the client socket
+-//        //mtcp_close(mctx, client_sock);
+-//        //printf("Connection closed with %s:%d\n",
+-//         //      inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+-//    }
+-//
+-//    // Close the listening socket and destroy the mTCP context
+-//    mtcp_close(mctx, listen_sock);
+-//    mtcp_destroy_context(mctx);
+-//
+-//    return 0;
+-//}
+-//
+diff --git a/apps/example/old_server/server.conf b/apps/example/old_server/server.conf
+deleted file mode 100644
+index b23ad781..00000000
+--- a/apps/example/old_server/server.conf
++++ /dev/null
+@@ -1,91 +0,0 @@
+-############### mtcp configuration file ###############
+-
+-# The underlying I/O module you want to use. Please
+-# enable only one out of the four.
+-#io = psio
+-#io = netmap
+-#io = onvm
+-io = dpdk
+-
+-# No. of cores setting (enabling this option will override
+-# the `cpu' config for those applications that accept
+-# num_cores as command line arguments)
+-# 
+-# e.g. in case ./epserver is executed with `-N 4', the
+-# mtcp core will still invoke 8 mTCP threads if the
+-# following line is uncommented.
+-num_cores = 1
+-
+-# Core mask
+-#core_mask = 0000000F0
+-
+-# Number of memory channels per processor socket (dpdk-only)
+-num_mem_ch = 4
+-
+-#--- ONVM specific args ---#
+-# Service id (required)
+-#onvm_serv = 1
+-# Instance id (optional)
+-#onvm_inst = 1
+-# Destination id (will forward to another NF)
+-# If not set will send packets out
+-#onvm_dest = 2
+-
+-# Sample ONVM configurations
+-# Single node epserver <-> epwget 
+-#onvm_serv = 1
+-#onvm_dest = 2
+-
+-# Simple endpoint server multi node setup
+-#onvm_serv = 1
+-#--------------------------#
+-
+-# Enable multi-process support
+-#multiprocess = 1
+-
+-# Used port (please adjust accordingly)
+-#------ PSIO ports -------#
+-#port = xge0 xge1
+-#port = xge1
+-#------ DPDK ports -------#
+-port = dpdk0
+-#port = dpdk1
+-#port = dpdk0 dpdk1
+-
+-# Congestion control algorithm
+-# (only available when configured with --enable-ccp)
+-# cc = reno
+-# cc = cubic
+-
+-# Maximum concurrency per core (default = 10000)
+-max_concurrency = 4
+-
+-# Maximum number of socket buffers per core (default = 10000)
+-# Set this to small value if there are many idle connections
+-#max_num_buffers = 10000
+-
+-# Receive buffer size of sockets; if not set: rcvbuf = sndbuf
+-rcvbuf = 8192
+-
+-# Send buffer size of sockets; if not set: sndbuf = rcvbuf
+-sndbuf = 8912
+-
+-# if sndbuf & rcvbuf not set: sndbuf = rcvbuf = 8192
+-
+-# TCP timeout seconds
+-# (tcp_timeout = -1 can disable the timeout check)
+-tcp_timeout = 30
+-
+-# TCP timewait seconds
+-tcp_timewait = 0
+-
+-# Interface to print stats (please adjust accordingly)
+-# You can enable multiple ports in a line
+-#------ PSIO ports -------#
+-#stat_print = xge0
+-#stat_print = xge1
+-#------ DPDK ports -------#
+-#stat_print = dpdk0
+-#stat_print = dpdk0 dpdk1
+-
+-#######################################################
+diff --git a/apps/example/server b/apps/example/server
+deleted file mode 100755
+index d80295c8..00000000
+Binary files a/apps/example/server and /dev/null differ
+diff --git a/apps/example/server.c b/apps/example/server.c
+deleted file mode 100644
+index 03cbea9d..00000000
+--- a/apps/example/server.c
++++ /dev/null
+@@ -1,111 +0,0 @@
+-
+-#include <stdlib.h>
+-#include <string.h>
+-#include <arpa/inet.h>
+-#include <mtcp_api.h>
+-#include <mtcp_epoll.h>
+-#include <stdio.h>
+-#include <unistd.h>
+-
+-#define PORT_NUM 12345
+-#define MAX_CONNECTIONS 3
+-#define MAX_EVENTS 3
+-
+-
+-int main() {
+-    int ret;
+-    mctx_t mctx;
+-
+-    // Initialize mTCP
+-    ret = mtcp_init("server.conf");
+-    if (ret) {
+-        fprintf(stderr, "mtcp_init failed: %s\n", strerror(-ret));
+-        return -1; 
+-    }   
+-
+-    // Create mTCP context
+-    mctx = mtcp_create_context(0);
+-    if (!mctx) {
+-        fprintf(stderr, "mtcp_create_context failed\n");
+-        return -1; 
+-    }   
+-
+-    // Create a socket
+-    int listen_sock = mtcp_socket(mctx, AF_INET, SOCK_STREAM, 0); 
+-    if (listen_sock < 0) {
+-        fprintf(stderr, "mtcp_socket failed: %s\n", strerror(-listen_sock));
+-        return -1; 
+-    }   
+-
+-    // Bind the socket
+-    struct sockaddr_in server_addr;
+-    memset(&server_addr, 0, sizeof(server_addr));
+-    server_addr.sin_family = AF_INET;
+-    server_addr.sin_port = htons(PORT_NUM);
+-    server_addr.sin_addr.s_addr = INADDR_ANY;
+-
+-    ret = mtcp_bind(mctx, listen_sock, (struct sockaddr *)&server_addr, sizeof(server_addr));
+-    if (ret) {
+-        fprintf(stderr, "mtcp_bind failed: %s\n", strerror(-ret));
+-        return -1; 
+-    }   
+-
+-    // Listen for incoming connections
+-    ret = mtcp_listen(mctx, listen_sock, MAX_CONNECTIONS);
+-    if (ret) {
+-        fprintf(stderr, "mtcp_listen failed: %s\n", strerror(-ret));
+-        return -1; 
+-    }   
+-
+-    printf("Server listening on port %d...\n", PORT_NUM);
+-        int ep, i;
+-        struct mtcp_epoll_event ev, events[MAX_EVENTS];
+-        ep = mtcp_epoll_create(mctx, MAX_EVENTS);
+-        ev.events = MTCP_EPOLLIN; ev.data.sockid = listen_sock;
+-        mtcp_epoll_ctl(mctx, ep, MTCP_EPOLL_CTL_ADD, listen_sock, &ev);
+-
+-    while (1) {
+-
+-        // Accept a new client connection
+-        struct sockaddr_in client_addr;
+-        socklen_t client_addr_len = sizeof(client_addr);
+-
+-        //EPOLL stuff
+-        int nevents = mtcp_epoll_wait(mctx, ep, events, MAX_EVENTS, -1);
+-
+-        // check if returns error and if so print error message and exit
+-        if (nevents < 0) {
+-            fprintf(stderr, "mtcp_epoll_wait failed: %s\n", strerror(-nevents));
+-            exit(1);
+-        }
+-        // print number of events
+-        printf("Number of events: %d\n", nevents);
+-        for (i = 0; i < nevents; i++) {
+-                if (events[i].data.sockid == listen_sock) {                    
+-                        int client_sock = mtcp_accept(mctx, listen_sock, (struct sockaddr *)&client_addr, &client_addr_len);
+-                        printf("Accepted a new connection from %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+-                        sleep(5);
+-                        if (client_sock < 0) {
+-                            fprintf(stderr, "mtcp_accept failed: %s\n", strerror(-client_sock));
+-                            continue;
+-                            // exit(1);
+-
+-                        }
+-                } else if (events[i].events & MTCP_EPOLLIN){
+-                    fprintf(stdout, "I have recieved some message\n");
+-                    // delay for 5 seconds
+-                    sleep(5);
+-                }
+-                
+-        }
+-        printf("I am here\n");
+-    }
+-
+-    // Close the listening socket and destroy the mTCP context
+-    mtcp_close(mctx, listen_sock);
+-    mtcp_destroy_context(mctx);
+-
+-    return 0;
+-}
+-
+-
+diff --git a/apps/example/server.conf b/apps/example/server.conf
+deleted file mode 100644
+index b23ad781..00000000
+--- a/apps/example/server.conf
++++ /dev/null
+@@ -1,91 +0,0 @@
+-############### mtcp configuration file ###############
+-
+-# The underlying I/O module you want to use. Please
+-# enable only one out of the four.
+-#io = psio
+-#io = netmap
+-#io = onvm
+-io = dpdk
+-
+-# No. of cores setting (enabling this option will override
+-# the `cpu' config for those applications that accept
+-# num_cores as command line arguments)
+-# 
+-# e.g. in case ./epserver is executed with `-N 4', the
+-# mtcp core will still invoke 8 mTCP threads if the
+-# following line is uncommented.
+-num_cores = 1
+-
+-# Core mask
+-#core_mask = 0000000F0
+-
+-# Number of memory channels per processor socket (dpdk-only)
+-num_mem_ch = 4
+-
+-#--- ONVM specific args ---#
+-# Service id (required)
+-#onvm_serv = 1
+-# Instance id (optional)
+-#onvm_inst = 1
+-# Destination id (will forward to another NF)
+-# If not set will send packets out
+-#onvm_dest = 2
+-
+-# Sample ONVM configurations
+-# Single node epserver <-> epwget 
+-#onvm_serv = 1
+-#onvm_dest = 2
+-
+-# Simple endpoint server multi node setup
+-#onvm_serv = 1
+-#--------------------------#
+-
+-# Enable multi-process support
+-#multiprocess = 1
+-
+-# Used port (please adjust accordingly)
+-#------ PSIO ports -------#
+-#port = xge0 xge1
+-#port = xge1
+-#------ DPDK ports -------#
+-port = dpdk0
+-#port = dpdk1
+-#port = dpdk0 dpdk1
+-
+-# Congestion control algorithm
+-# (only available when configured with --enable-ccp)
+-# cc = reno
+-# cc = cubic
+-
+-# Maximum concurrency per core (default = 10000)
+-max_concurrency = 4
+-
+-# Maximum number of socket buffers per core (default = 10000)
+-# Set this to small value if there are many idle connections
+-#max_num_buffers = 10000
+-
+-# Receive buffer size of sockets; if not set: rcvbuf = sndbuf
+-rcvbuf = 8192
+-
+-# Send buffer size of sockets; if not set: sndbuf = rcvbuf
+-sndbuf = 8912
+-
+-# if sndbuf & rcvbuf not set: sndbuf = rcvbuf = 8192
+-
+-# TCP timeout seconds
+-# (tcp_timeout = -1 can disable the timeout check)
+-tcp_timeout = 30
+-
+-# TCP timewait seconds
+-tcp_timewait = 0
+-
+-# Interface to print stats (please adjust accordingly)
+-# You can enable multiple ports in a line
+-#------ PSIO ports -------#
+-#stat_print = xge0
+-#stat_print = xge1
+-#------ DPDK ports -------#
+-#stat_print = dpdk0
+-#stat_print = dpdk0 dpdk1
+-
+-#######################################################
+diff --git a/apps/example/simple_tcp_server b/apps/example/simple_tcp_server
+deleted file mode 100755
+index 790df47f..00000000
+Binary files a/apps/example/simple_tcp_server and /dev/null differ
+diff --git a/apps/example/simple_tcp_server.c b/apps/example/simple_tcp_server.c
+deleted file mode 100644
+index 7f6d9b9b..00000000
+--- a/apps/example/simple_tcp_server.c
++++ /dev/null
+@@ -1,233 +0,0 @@
+-#include <errno.h>
+-#include <netinet/in.h>
+-#include <stdio.h>
+-#include <stdlib.h>
+-#include <string.h>
+-#include <sys/epoll.h>
+-#include <sys/socket.h>
+-#include <sys/types.h>
+-#include <unistd.h>
+-
+-#include <mtcp_api.h>
+-#include <mtcp_epoll.h>
+-
+-#include "cpu.h"
+-#include "debug.h"
+-#include "http_parsing.h"
+-#include "netlib.h"
+-
+-/*----------------------------------------------------------------------------*/
+-#define NEVENTS 16
+-#define BUFSIZE 1024
+-/*----------------------------------------------------------------------------*/
+-#define MAX_FLOW_NUM (10000)
+-#define MAX_EVENTS (MAX_FLOW_NUM * 3)
+-#define HTTP_HEADER_LEN 1024
+-#define NAME_LIMIT 256
+-/*----------------------------------------------------------------------------*/
+-enum mystate { MYSTATE_READ = 0, MYSTATE_WRITE };
+-/*----------------------------------------------------------------------------*/
+-struct server_vars {
+-  char request[HTTP_HEADER_LEN];
+-  int recv_len;
+-  int request_len;
+-  long int total_read, total_sent;
+-  uint8_t done;
+-  uint8_t rspheader_sent;
+-  uint8_t keep_alive;
+-
+-  int fidx;                // file cache index
+-  char fname[NAME_LIMIT];  // file name
+-  long int fsize;          // file size
+-};
+-/*----------------------------------------------------------------------------*/
+-struct thread_context {
+-  mctx_t mctx;
+-  int ep;
+-  struct server_vars *svars;
+-};
+-/*----------------------------------------------------------------------------*/
+-
+-int main() {
+-  int sock0;
+-  struct sockaddr_in addr;
+-  struct sockaddr_in client;
+-  socklen_t len;
+-  int sock;
+-  int n, i;
+-  struct epoll_event ev, ev_ret[NEVENTS];
+-  int epfd;
+-  int nfds;
+-  struct clientinfo {
+-    int fd;
+-    char buf[1024];
+-    int n;
+-    int state;
+-  };
+-
+-  // setting for mTCP
+-  int ret;
+-  mctx_t mctx;
+-  struct mtcp_conf mcfg;
+-  mtcp_getconf(&mcfg);
+-  mcfg.num_cores = 1;
+-  mtcp_setconf(&mcfg);
+-  ret = mtcp_init("server.conf");
+-  if (ret) {
+-    TRACE_CONFIG("Failed to initialize mtcp\n");
+-    abort();
+-    exit(EXIT_FAILURE);
+-  }
+-  struct thread_context *ctx;
+-  ctx = (struct thread_context *)calloc(1, sizeof(struct thread_context));
+-  if (!ctx) {
+-    TRACE_ERROR("Failed to create thread context!\n");
+-    abort();
+-    exit(EXIT_FAILURE);
+-  }
+-  /* create mtcp context: this will spawn an mtcp thread */
+-  ctx->mctx = mtcp_create_context(0);
+-  if (!ctx->mctx) {
+-    TRACE_ERROR("Failed to create mtcp context!\n");
+-    free(ctx);
+-    abort();
+-    exit(EXIT_FAILURE);
+-  }
+-  ctx->ep = epoll_create(30000);
+-  if (ctx->ep < 0) {
+-    mtcp_destroy_context(ctx->mctx);
+-    free(ctx);
+-    TRACE_ERROR("Failed to create epoll descriptor!\n");
+-    abort();
+-    exit(EXIT_FAILURE);
+-  }
+-  /* allocate memory for server variables */
+-  ctx->svars = (struct server_vars *)calloc(10000, sizeof(struct server_vars));
+-  if (!ctx->svars) {
+-    close(ctx->ep);
+-    mtcp_destroy_context(ctx->mctx);
+-    free(ctx);
+-    TRACE_ERROR("Failed to create server_vars struct!\n");
+-    abort();
+-    exit(EXIT_FAILURE);
+-  }
+-
+-  mctx = ctx->mctx;
+-
+-  // create socket
+-  sock0 = socket(AF_INET, SOCK_STREAM, 0);
+-  int sock1 = socket(AF_INET, SOCK_STREAM, 0);
+-  int sock2 = socket(AF_UNIX, SOCK_STREAM, 0);
+-  int sock3 = socket(AF_INET, SOCK_STREAM, 0);
+-  close(sock1);
+-  close(sock2);
+-  close(sock3);
+-  // set socket
+-  addr.sin_family = AF_INET;
+-  addr.sin_port = htons(12345);
+-  addr.sin_addr.s_addr = INADDR_ANY;
+-  bind(sock0, (struct sockaddr *)&addr, sizeof(addr));
+-  listen(sock0, 5);
+-
+-  epfd = ctx->ep;
+-  memset(&ev, 0, sizeof(ev));
+-  ev.events = EPOLLIN;
+-  ev.data.ptr = malloc(sizeof(struct clientinfo));
+-  if (ev.data.ptr == NULL) {
+-    perror("malloc");
+-    return 1;
+-  }
+-  memset(ev.data.ptr, 0, sizeof(struct clientinfo));
+-  ((struct clientinfo *)ev.data.ptr)->fd = sock0;
+-  if (epoll_ctl(epfd, EPOLL_CTL_ADD, sock0, &ev) != 0) {
+-    perror("epoll_ctl");
+-    return 1;
+-  }
+-  /* (4) */
+-  for (;;) {
+-    nfds = epoll_wait(epfd, ev_ret, NEVENTS, -1);
+-    if (nfds < 0) {
+-      perror("epoll_wait");
+-      return 1;
+-    }
+-
+-    /* (5) */
+-    printf("after epoll_wait : nfds=%d＼n", nfds);
+-
+-    for (i = 0; i < nfds; i++) {
+-      struct clientinfo *ci = ev_ret[i].data.ptr;
+-      printf("fd=%d＼n", ci->fd);
+-
+-      if (ci->fd == sock0) {
+-        /* (6) */
+-        /* TCPクライアントからの接続要求を受け付ける */
+-        len = sizeof(client);
+-        sock = accept(sock0, (struct sockaddr *)&client, &len);
+-        if (sock < 0) {
+-          perror("accept");
+-          return 1;
+-        }
+-
+-        printf("accept sock=%d＼n", sock);
+-
+-        memset(&ev, 0, sizeof(ev));
+-        ev.events = EPOLLIN | EPOLLONESHOT;
+-        ev.data.ptr = malloc(sizeof(struct clientinfo));
+-        if (ev.data.ptr == NULL) {
+-          perror("malloc");
+-          return 1;
+-        }
+-
+-        memset(ev.data.ptr, 0, sizeof(struct clientinfo));
+-        ((struct clientinfo *)ev.data.ptr)->fd = sock;
+-
+-        if (epoll_ctl(epfd, EPOLL_CTL_ADD, sock, &ev) != 0) {
+-          perror("epoll_ctl");
+-          return 1;
+-        }
+-
+-      } else {
+-        /* (7) */
+-        if (ev_ret[i].events & EPOLLIN) {
+-          ci->n = read(ci->fd, ci->buf, BUFSIZE);
+-          if (ci->n < 0) {
+-            perror("read");
+-            return 1;
+-          }
+-
+-          ci->state = MYSTATE_WRITE;
+-          ev_ret[i].events = EPOLLOUT;
+-
+-          if (epoll_ctl(epfd, EPOLL_CTL_MOD, ci->fd, &ev_ret[i]) != 0) {
+-            perror("epoll_ctl");
+-            return 1;
+-          }
+-        } else if (ev_ret[i].events & EPOLLOUT) {
+-          /* (8) */
+-          char str[1024];
+-          sprintf(str, "Hello, %s", ci->buf);
+-          n = write(ci->fd, str, strlen(str));
+-          if (n < 0) {
+-            perror("write");
+-            return 1;
+-          }
+-
+-          if (epoll_ctl(epfd, EPOLL_CTL_DEL, ci->fd, &ev_ret[i]) != 0) {
+-            perror("epoll_ctl");
+-            return 1;
+-          }
+-
+-          close(ci->fd);
+-          free(ev_ret[i].data.ptr);
+-        }
+-      }
+-    }
+-  }
+-
+-  mtcp_destroy_context(mctx);
+-  /* (9) */
+-  /* listen するsocketの終了 */
+-  close(sock0);
+-
+-  return 0;
+-}
+diff --git a/apps/perf/client.c b/apps/perf/client.c
+index 1092a716..b77e5062 100644
+--- a/apps/perf/client.c
++++ b/apps/perf/client.c
+@@ -180,11 +180,10 @@ main(int argc, char **argv)
+ 	// Init mtcp
+ 	DEBUG("Initializing mtcp...\n");
+ 	if (mtcp_init("client.conf")) {
+-		ERROR("Failed to initialize mtcp. \n");
++		ERROR("Failed to initialize mtcp.\n");
+ 		return -1;
+ 	}
+ 
+-
+ 	// Default simple config, this must be done after mtcp_init
+ 	mtcp_getconf(&mcfg);
+ 	mcfg.max_concurrency = 3 * CONCURRENCY;
+@@ -196,19 +195,14 @@ main(int argc, char **argv)
+ 
+ 	DEBUG("Creating thread context...");
+ 	mtcp_core_affinitize(core);
+-
+ 	ctx = (struct thread_context *) calloc(1, sizeof(struct thread_context));
+-
+ 	if (!ctx) {
+ 		ERROR("Failed to create context.");
+-		printf("Hello love\n");
+ 		perror("calloc");
+ 		return -1;
+ 	}
+ 	ctx->core = core;
+-
+ 	ctx->mctx = mtcp_create_context(core);
+-
+ 	if (!ctx->mctx) {
+ 		ERROR("Failed to create mtcp context.");
+ 		return -1;
+@@ -313,7 +307,6 @@ end_wait_loop:
+ 	memset(buf, 0x90, sizeof(char) * BUF_LEN);
+ 	buf[BUF_LEN-1] = '\0';
+ 
+-
+ 	while (1) {
+ 		wrote = mtcp_write(ctx->mctx, sockfd, buf, BUF_LEN);
+ 		bytes_sent += wrote;
+diff --git a/apps/perf/client.conf b/apps/perf/client.conf
+index 3e9ec9fc..f13a64d6 100644
+--- a/apps/perf/client.conf
++++ b/apps/perf/client.conf
+@@ -22,8 +22,8 @@ num_mem_ch = 4
+ #port = xge0 xge1
+ #port = xge
+ #------ DPDK ports -------#
+-# port = 10gp1
+-port = dpdk0
++port = 10gp1
++#port = dpdk0:0
+ #port = dpdk0:1
+ 
+ # Enable multi-process support (under development)
+@@ -36,22 +36,21 @@ port = dpdk0
+ # cc = cubic
+ 
+ # Receive buffer size of sockets
+-# rcvbuf = 6291456
++rcvbuf = 6291456
+ #rcvbuf = 16384
+-rcvbuf = 1024
+ 
+ # Send buffer size of sockets
+-sndbuf = 1024
+-# sndbuf = 4194304
++#sndbuf = 2048
++sndbuf = 4194304
+ #sndbuf = 41943040
+ #sndbuf = 146000
+ 
+ # Maximum concurrency per core
+-# max_concurrency = 10000
++max_concurrency = 10000
+ 
+ # Maximum number of socket buffers per core
+ # Set this to small value if there are many idle connections
+-# max_num_buffers = 10000
++max_num_buffers = 10000
+ 
+ # TCO timeout seconds
+ # (tcp_timeout = -1 can disable the timeout check)
+diff --git a/mtcp/src/Makefile.in b/mtcp/src/Makefile.in
+index 14be75ff..f81a0c8d 100644
+--- a/mtcp/src/Makefile.in
++++ b/mtcp/src/Makefile.in
+@@ -41,7 +41,7 @@ endif
+ # DBGCERR     	= Enable macro to print error statements
+ #
+ 
+-GCC_OPT += -Wall -fPIC -fgnu89-inline
++GCC_OPT += -Wall -fPIC -fgnu89-inline -Werror
+ #DBG_OPT = -DDBGMSG -DDBGFUNC -DSTREAM -DSTATE -DTSTAT -DAPP -DEPOLL
+ #DBG_OPT = -DDBGMSG -DDBGFUNC -DSTREAM -DSTATE
+ #DBG_OPT += -DPKTDUMP
+diff --git a/mtcp/src/addr_pool.c b/mtcp/src/addr_pool.c
+index 2c1e98c1..33368251 100644
+--- a/mtcp/src/addr_pool.c
++++ b/mtcp/src/addr_pool.c
+@@ -283,6 +283,7 @@ FetchAddressPerCore(addr_pool_t ap, int core, int num_queues,
+ 		return -1;
+ 
+ 	pthread_mutex_lock(&ap->lock);
++	
+ 	/* we don't need to calculate RSSCPUCore if mtcp_init_rss is called */
+ 	walk = TAILQ_FIRST(&ap->free_list);
+ 	if (walk) {
+@@ -293,7 +294,9 @@ FetchAddressPerCore(addr_pool_t ap, int core, int num_queues,
+ 		ap->num_used++;
+ 		ret = 0;
+ 	}
++	
+ 	pthread_mutex_unlock(&ap->lock);
++	
+ 	return ret;
+ }
+ /*----------------------------------------------------------------------------*/
+diff --git a/mtcp/src/api.c b/mtcp/src/api.c
+index a1a85105..c53714bc 100644
+--- a/mtcp/src/api.c
++++ b/mtcp/src/api.c
+@@ -3,7 +3,6 @@
+ #include <limits.h>
+ #include <unistd.h>
+ #include <assert.h>
+-#include <arpa/inet.h>
+ 
+ #include "mtcp.h"
+ #include "mtcp_api.h"
+@@ -18,7 +17,6 @@
+ #include "rss.h"
+ #include "config.h"
+ #include "debug.h"
+-#include "mptcp.h"
+ 
+ #define MAX(a, b) ((a)>(b)?(a):(b))
+ #define MIN(a, b) ((a)<(b)?(a):(b))
+@@ -668,7 +666,7 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
+ 
+ 		/* for the INADDR_ANY, find the output interface for the destination
+ 		   and set the saddr_base as the ip address of the output interface */
+-		nif_out = GetOutputInterface(daddr, saddr_base, &is_external);
++		nif_out = GetOutputInterface(daddr, &is_external);
+ 		if (nif_out < 0) {
+ 			errno = EINVAL;
+ 			TRACE_DBG("Could not determine nif idx!\n");
+@@ -693,7 +691,7 @@ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr,
+ /*----------------------------------------------------------------------------*/
+ int 
+ mtcp_connect(mctx_t mctx, int sockid, 
+-		const struct sockaddr *addr, socklen_t addrlen, mptcp_cb *mptcp_cb)
++		const struct sockaddr *addr, socklen_t addrlen)
+ {
+ 	mtcp_manager_t mtcp;
+ 	socket_map_t socket;
+@@ -732,6 +730,7 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 		errno = EFAULT;
+ 		return -1;
+ 	}
++
+ 	/* we only allow bind() for AF_INET address */
+ 	if (addr->sa_family != AF_INET || addrlen < sizeof(struct sockaddr_in)) {
+ 		TRACE_API("Socket %d: invalid argument!\n", sockid);
+@@ -749,6 +748,7 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 		}
+ 		return -1;
+ 	}
++
+ 	addr_in = (struct sockaddr_in *)addr;
+ 	dip = addr_in->sin_addr.s_addr;
+ 	dport = addr_in->sin_port;
+@@ -768,13 +768,12 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 			return -1;
+ 		}
+ 	} else {
+-		
+ 		if (mtcp->ap) {
+ 			ret = FetchAddressPerCore(mtcp->ap, 
+ 						  mctx->cpu, num_queues, addr_in, &socket->saddr);
+ 		} else {
+ 			uint8_t is_external;
+-			nif = GetOutputInterface(dip, socket->saddr.sin_addr.s_addr, &is_external);
++			nif = GetOutputInterface(dip, &is_external);
+ 			if (nif < 0) {
+ 				errno = EINVAL;
+ 				return -1;
+@@ -790,19 +789,15 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 		socket->opts |= MTCP_ADDR_BIND;
+ 		is_dyn_bound = TRUE;
+ 	}
++
+ 	cur_stream = CreateTCPStream(mtcp, socket, socket->socktype, 
+ 			socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
+-	
+-	if (mptcp_cb)
+-	{
+-		cur_stream->isMPJOINStream = 1;
+-	}
+-	
+ 	if (!cur_stream) {
+ 		TRACE_ERROR("Socket %d: failed to create tcp_stream!\n", sockid);
+ 		errno = ENOMEM;
+ 		return -1;
+ 	}
++
+ 	if (is_dyn_bound)
+ 		cur_stream->is_bound_addr = TRUE;
+ 	cur_stream->sndvar->cwnd = 1;
+@@ -810,12 +805,12 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 
+ 	cur_stream->state = TCP_ST_SYN_SENT;
+ 	TRACE_STATE("Stream %d: TCP_ST_SYN_SENT\n", cur_stream->id);
++
+ 	SQ_LOCK(&mtcp->ctx->connect_lock);
+ 	ret = StreamEnqueue(mtcp->connectq, cur_stream);
+ 	SQ_UNLOCK(&mtcp->ctx->connect_lock);
+ 	mtcp->wakeup_flag = TRUE;
+ 	if (ret < 0) {
+-
+ 		TRACE_ERROR("Socket %d: failed to enqueue to conenct queue!\n", sockid);
+ 		SQ_LOCK(&mtcp->ctx->destroyq_lock);
+ 		StreamEnqueue(mtcp->destroyq, cur_stream);
+@@ -826,14 +821,11 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 
+ 	/* if nonblocking socket, return EINPROGRESS */
+ 	if (socket->opts & MTCP_NONBLOCK) {
+-
+ 		errno = EINPROGRESS;
+ 		return -1;
+ 
+ 	} else {
+-
+ 		while (1) {
+-			// This place looping indefintely
+ 			if (!cur_stream) {
+ 				TRACE_ERROR("STREAM DESTROYED\n");
+ 				errno = ETIMEDOUT;
+@@ -848,15 +840,12 @@ mtcp_connect(mctx_t mctx, int sockid,
+ 			}
+ 
+ 			if (cur_stream->state == TCP_ST_ESTABLISHED) {
+-				// add the mpcb here instead of the above place
+-				cur_stream->mptcp_cb = mptcp_cb;
+ 				break;
+ 			}
+ 			usleep(1000);
+ 		}
+ 	}
+ 
+-
+ 	return 0;
+ }
+ /*----------------------------------------------------------------------------*/
+@@ -1131,7 +1120,6 @@ PeekForUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
+ static inline int
+ CopyToUser(mtcp_manager_t mtcp, tcp_stream *cur_stream, char *buf, int len)
+ {
+-
+ 	struct tcp_recv_vars *rcvvar = cur_stream->rcvvar;
+ 	uint32_t prev_rcv_wnd;
+ 	int copylen;
+@@ -1205,23 +1193,14 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
+ 	}
+ 	
+ 	/* stream should be in ESTABLISHED, FIN_WAIT_1, FIN_WAIT_2, CLOSE_WAIT */
+-	if (socket->stream->mptcp_cb != NULL)
+-	{
+-		cur_stream = socket->stream->mptcp_cb->mpcb_stream;
+-	}
+-	else
+-	{
+-		cur_stream = socket->stream;
+-	}
+-
+-	// Below commented by Haathim
+-	// cur_stream = socket->stream;
++	cur_stream = socket->stream;
+         if (!cur_stream || 
+ 	    !(cur_stream->state >= TCP_ST_ESTABLISHED && 
+ 	      cur_stream->state <= TCP_ST_CLOSE_WAIT)) {
+ 		errno = ENOTCONN;
+ 		return -1;
+ 	}
++
+ 	rcvvar = cur_stream->rcvvar;
+ 	
+ 	/* if CLOSE_WAIT, return 0 if there is no payload */
+@@ -1232,6 +1211,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
+ 		if (rcvvar->rcvbuf->merged_len == 0)
+ 			return 0;
+         }
++	
+ 	/* return EAGAIN if no receive buffer */
+ 	if (socket->opts & MTCP_NONBLOCK) {
+ 		if (!rcvvar->rcvbuf || rcvvar->rcvbuf->merged_len == 0) {
+@@ -1239,7 +1219,7 @@ mtcp_recv(mctx_t mctx, int sockid, char *buf, size_t len, int flags)
+ 			return -1;
+ 		}
+ 	}
+-
++	
+ 	SBUF_LOCK(&rcvvar->read_lock);
+ #if BLOCKING_SUPPORT
+ 	if (!(socket->opts & MTCP_NONBLOCK)) {
+@@ -1489,7 +1469,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+ 	tcp_stream *cur_stream;
+ 	struct tcp_send_vars *sndvar;
+ 	int ret;
+-	struct tcp_stream *mpcb_stream = NULL;
+ 
+ 	mtcp = GetMTCPManager(mctx);
+ 	if (!mtcp) {
+@@ -1518,13 +1497,8 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+ 		errno = ENOTSOCK;
+ 		return -1;
+ 	}
+-
+-	cur_stream = socket->stream;
+-	if (cur_stream->mptcp_cb != NULL){
+-		mpcb_stream = cur_stream->mptcp_cb->mpcb_stream;
+-		cur_stream = cur_stream->mptcp_cb->tcp_streams[0]; //decided by scheduler
+-	}
+ 	
++	cur_stream = socket->stream;
+ 	if (!cur_stream || 
+ 			!(cur_stream->state == TCP_ST_ESTABLISHED || 
+ 			  cur_stream->state == TCP_ST_CLOSE_WAIT)) {
+@@ -1541,36 +1515,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+ 		}
+ 	}
+ 
+-	// Copying to mpcb send buffer
+-	if (mpcb_stream)
+-	{
+-		sndvar = mpcb_stream->sndvar;
+-		SBUF_LOCK(&sndvar->write_lock);
+-#if BLOCKING_SUPPORT
+-		if (!(socket->opts & MTCP_NONBLOCK)) {
+-			while (sndvar->snd_wnd <= 0) {
+-				TRACE_SNDBUF("Waiting for available sending window...\n");
+-				if (!mpcb_stream || mpcb_stream->state != TCP_ST_ESTABLISHED) {
+-					SBUF_UNLOCK(&sndvar->write_lock);
+-					errno = EINTR;
+-					return -1;
+-				}
+-				pthread_cond_wait(&sndvar->write_cond, &sndvar->write_lock);
+-				TRACE_SNDBUF("Sending buffer became ready! snd_wnd: %u\n", 
+-						sndvar->snd_wnd);
+-			}
+-		}
+-#endif
+-
+-		ret = CopyFromUser(mtcp, mpcb_stream, buf, len);
+-
+-		SBUF_UNLOCK(&sndvar->write_lock);
+-
+-		// In normal tcp_stream there are many other checks done after, but for now not needed
+-
+-	}
+-	
+-	// Copying to subflow send buffer
+ 	sndvar = cur_stream->sndvar;
+ 
+ 	SBUF_LOCK(&sndvar->write_lock);
+@@ -1625,47 +1569,6 @@ mtcp_write(mctx_t mctx, int sockid, const char *buf, size_t len)
+ 	}
+ 
+ 	TRACE_API("Stream %d: mtcp_write() returning %d\n", cur_stream->id, ret);
+-
+-	// mp_join will be sent after the second write call (decsion for now)
+-	static int write_count = -1;
+-
+-
+-
+-	if(cur_stream->mptcp_cb != NULL){
+-		write_count++;
+-		if (write_count == 1)
+-		{
+-			// starting a mp_join
+-			// create a socket for the new subflow (do we really need? for now doing just so easy to put addresses)
+-			int new_subflow_sockid = mtcp_socket(mctx, AF_INET, SOCK_STREAM, 0);
+-
+-			struct sockaddr_in my_addr;
+-			my_addr.sin_family = AF_INET;
+-			char my_var[] = "192.168.61.12";
+-			my_addr.sin_addr.s_addr = inet_addr(my_var);
+-			my_addr.sin_port = cur_stream->dport;
+-
+-			mtcp_bind(mctx, new_subflow_sockid, (struct sockaddr *)&my_addr, sizeof(struct sockaddr_in));
+-			
+-			socket_map_t new_subflow_socket = &mtcp->smap[new_subflow_sockid];
+-			struct sockaddr_in addr;
+-			addr.sin_family = AF_INET;
+-			char var[] = "192.168.63.12";
+-			addr.sin_addr.s_addr = inet_addr(var);
+-			addr.sin_port = cur_stream->dport;
+-			
+-			// create a tcpstream
+-			// CreateTCPStream(mtcp, socket, socket->socktype, 
+-			// 		socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, dip, dport);
+-			int new_subflow_ret = mtcp_connect(mctx, new_subflow_sockid, (struct sockaddr *)&addr, sizeof(struct sockaddr_in), cur_stream->mptcp_cb);
+-			
+-			// tcp_stream* subflow_tcp_stream = CreateTCPStream(mtcp, new_subflow_socket, new_subflow_socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, addr.sin_addr.s_addr, cur_stream->dport);
+-			
+-
+-		}
+-		
+-		
+-	}
+ 	return ret;
+ }
+ /*----------------------------------------------------------------------------*/
+diff --git a/mtcp/src/arp.c b/mtcp/src/arp.c
+index 1909a630..dce8aa1f 100644
+--- a/mtcp/src/arp.c
++++ b/mtcp/src/arp.c
+@@ -95,27 +95,14 @@ GetHWaddr(uint32_t ip)
+ }
+ /*----------------------------------------------------------------------------*/
+ unsigned char *
+-GetDestinationHWaddr(uint32_t dip, uint32_t sip, uint8_t is_gateway)
++GetDestinationHWaddr(uint32_t dip, uint8_t is_gateway)
+ {
+ 	unsigned char *d_haddr = NULL;
+ 	int prefix = 0;
+ 	int i;
+ 
+-	// loop through CONFIG.gateway[i] and check if sip == gateway.saddr
+-	if (is_gateway == 1)
+-	{
+-		for ( i = 0; i < CONFIG.gatewayCount; i++)
+-		{
+-			if(CONFIG.gateway[i]->saddr == sip){
+-				d_haddr = (CONFIG.arp.gateway[i])->haddr;
+-			}
+-		}
+-		
+-	}
+-	
+-
+-	// if (is_gateway == 1 && CONFIG.arp.gateway)
+-	// 	d_haddr = (CONFIG.arp.gateway)->haddr;
++	if (is_gateway == 1 && CONFIG.arp.gateway)
++		d_haddr = (CONFIG.arp.gateway)->haddr;
+ 	else {	
+ 		/* Longest prefix matching */
+ 		for (i = 0; i < CONFIG.arp.entries; i++) {
+@@ -127,15 +114,16 @@ GetDestinationHWaddr(uint32_t dip, uint32_t sip, uint8_t is_gateway)
+ 			} else {
+ 				if ((dip & CONFIG.arp.entry[i].ip_mask) ==
+ 				    CONFIG.arp.entry[i].ip_masked) {
++					
+ 					if (CONFIG.arp.entry[i].prefix > prefix) {
+ 						d_haddr = CONFIG.arp.entry[i].haddr;
+ 						prefix = CONFIG.arp.entry[i].prefix;
+ 					}
+-				}else{
+ 				}
+ 			}
+ 		}
+ 	}
++	
+ 	return d_haddr;
+ }
+ /*----------------------------------------------------------------------------*/
+@@ -189,25 +177,13 @@ RegisterARPEntry(uint32_t ip, const unsigned char *haddr)
+ 	memcpy(CONFIG.arp.entry[idx].haddr, haddr, ETH_ALEN);
+ 	CONFIG.arp.entry[idx].ip_mask = -1;
+ 	CONFIG.arp.entry[idx].ip_masked = ip;
+-	
+-	int j;
+-	for ( j = 0; j < ETH_NUM; j++)
+-	{
+-		if (CONFIG.gateway[j] && ((CONFIG.gateway[j])->daddr &
++
++	if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+ 			       CONFIG.arp.entry[idx].ip_mask) ==
+-			CONFIG.arp.entry[idx].ip_masked) {
+-			CONFIG.arp.gateway[j] = &CONFIG.arp.entry[idx];
+-			TRACE_CONFIG("ARP Gateway SET!\n");
+-			break;
+-		}
++	    CONFIG.arp.entry[idx].ip_masked) {
++		CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
++		TRACE_CONFIG("ARP Gateway SET!\n");
+ 	}
+-
+-	// if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+-	// 		       CONFIG.arp.entry[idx].ip_mask) ==
+-	//     CONFIG.arp.entry[idx].ip_masked) {
+-	// 	CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
+-	// 	TRACE_CONFIG("ARP Gateway SET!\n");
+-	// }
+ 	
+ 	CONFIG.arp.entries = idx + 1;
+ 
+@@ -253,7 +229,7 @@ ProcessARPRequest(mtcp_manager_t mtcp,
+ 	unsigned char *temp;
+ 
+ 	/* register the arp entry if not exist */
+-	temp = GetDestinationHWaddr(arph->ar_sip, 0, 0);
++	temp = GetDestinationHWaddr(arph->ar_sip, 0);
+ 	if (!temp) {
+ 		RegisterARPEntry(arph->ar_sip, arph->ar_sha);
+ 	}
+@@ -271,7 +247,7 @@ ProcessARPReply(mtcp_manager_t mtcp, struct arphdr *arph, uint32_t cur_ts)
+ 	struct arp_queue_entry *ent;
+ 
+ 	/* register the arp entry if not exist */
+-	temp = GetDestinationHWaddr(arph->ar_sip, 0, 0);
++	temp = GetDestinationHWaddr(arph->ar_sip, 0);
+ 	if (!temp) {
+ 		RegisterARPEntry(arph->ar_sip, arph->ar_sha);
+ 	}
+diff --git a/mtcp/src/config.c b/mtcp/src/config.c
+index 157e283f..38188bde 100644
+--- a/mtcp/src/config.c
++++ b/mtcp/src/config.c
+@@ -37,7 +37,6 @@ struct mtcp_config CONFIG = {
+ 	.tcp_timeout	  =			TCP_TIMEOUT,
+ 	.tcp_timewait	  =			TCP_TIMEWAIT,
+ 	.num_mem_ch	  =			0,
+-	.gatewayCount = 0,
+ #if USE_CCP
+ 	.cc           	  =         		"reno\n",
+ #endif
+@@ -112,7 +111,6 @@ static void
+ EnrollRouteTableEntry(char *optstr)
+ {
+ 	char *daddr_s;
+-	char *saddr_s;
+ 	char *prefix;
+ #ifdef DISABLE_NETMAP 
+ 	char *dev;
+@@ -125,13 +123,10 @@ EnrollRouteTableEntry(char *optstr)
+ 	saveptr = NULL;
+ 	daddr_s = strtok_r(optstr, "/", &saveptr);
+ 	prefix = strtok_r(NULL, " ", &saveptr);
+-	saddr_s = strtok_r(NULL, " ", &saveptr);
+-
+ #ifdef DISABLE_NETMAP
+ 	dev = strtok_r(NULL, "\n", &saveptr);
+ #endif
+ 	assert(daddr_s != NULL);
+-	assert(saddr_s != NULL);
+ 	assert(prefix != NULL);
+ #ifdef DISABLE_NETMAP	
+ 	assert(dev != NULL);
+@@ -172,7 +167,6 @@ EnrollRouteTableEntry(char *optstr)
+ 	}
+ 
+ 	CONFIG.rtable[ridx].daddr = inet_addr(daddr_s);
+-	CONFIG.rtable[ridx].saddr = inet_addr(saddr_s);
+ 	CONFIG.rtable[ridx].prefix = mystrtol(prefix, 10);
+ 	if (CONFIG.rtable[ridx].prefix > 32 || CONFIG.rtable[ridx].prefix < 0) {
+ 		TRACE_CONFIG("Prefix length should be between 0 - 32.\n");
+@@ -186,31 +180,8 @@ EnrollRouteTableEntry(char *optstr)
+ 
+ 	if (CONFIG.rtable[ridx].mask == 0) {
+ 		TRACE_CONFIG("Default Route GW set!\n");
+-		CONFIG.gateway[CONFIG.gatewayCount++] = &CONFIG.rtable[ridx];
+-	}
+-
+-	// By Haathim: I dont think below is correct
+-	// int j;
+-	// if (CONFIG.rtable[ridx].mask == 0) {
+-		
+-	// 	for ( j = 0; j < ETH_NUM; j++)
+-	// 	{
+-	// 		if (CONFIG.gateway[j]->saddr == CONFIG.rtable[ridx].saddr)
+-	// 		{
+-	// 			TRACE_CONFIG("Default Route GW set[%d]!\n", j);
+-	// 			CONFIG.gateway[j] = &CONFIG.rtable[ridx];
+-	// 			break;
+-	// 		}
+-			
+-	// 	}
+-		
+-		
+-	// }	
+-
+-	// if (CONFIG.rtable[ridx].mask == 0) {
+-	// 	TRACE_CONFIG("Default Route GW set!\n");
+-	// 	CONFIG.gateway = &CONFIG.rtable[ridx];
+-	// }
++		CONFIG.gateway = &CONFIG.rtable[ridx];
++	}	
+ }
+ /*----------------------------------------------------------------------------*/
+ int 
+@@ -221,8 +192,6 @@ SetRoutingTableFromFile()
+ 	FILE *fc;
+ 	char optstr[MAX_OPTLINE_LEN];
+ 	int i;
+-	int j, allGatewaysAreAdded = 0;
+-
+ 
+ 	TRACE_CONFIG("Loading routing configurations from : %s\n", route_file);
+ 
+@@ -236,53 +205,31 @@ SetRoutingTableFromFile()
+ 	while (1) {
+ 		char *iscomment;
+ 		int num;
+-		int numOfDefGateways;
+   
+-		// check if no more lines in route file
+ 		if (fgets(optstr, MAX_OPTLINE_LEN, fc) == NULL)
+ 			break;
+ 
+ 		//skip comment
+ 		iscomment = strchr(optstr, '#');
+-		// first char of the line is '#', meaning it's a comment
+ 		if (iscomment == optstr)
+ 			continue;
+ 		if (iscomment != NULL)
+ 			*iscomment = 0;
+ 
+-		// check if the string is equal to "ROUTE" i.e. an actual route entry
+-		// (strncmp returns 0 if both equal)
+ 		if (!strncmp(optstr, ROUTES, sizeof(ROUTES) - 1)) {
+ 			num = GetIntValue(optstr + sizeof(ROUTES));
+ 			if (num <= 0)
+ 				break;
+ 
+-			// Can we do without number of default gws?
+-			numOfDefGateways = GetIntValue(optstr + sizeof(ROUTES) + 2); //this is only correct of ints are one digit
+-
+ 			for (i = 0; i < num; i++) {
+ 				if (fgets(optstr, MAX_OPTLINE_LEN, fc) == NULL)
+ 					break;
+ 
+-				// if it's a comment, skip it
+ 				if (*optstr == '#') {
+ 					i -= 1;
+ 					continue;
+ 				}
+-
+-				for (j = 0; j < numOfDefGateways; j++)
+-				{
+-					if(!CONFIG.gateway[j]){
+-						allGatewaysAreAdded = 0;
+-						break;
+-					}
+-				}
+-				
+-				// b4 it checks if the gateway entry is set
+-				// but now have to check if at least one entry is not set
+-				// but how to without knowing the number def gw entries there are?
+-				// if the def dw is not set
+-				if (!allGatewaysAreAdded)
++				if (!CONFIG.gateway)
+ 					EnrollRouteTableEntry(optstr);
+ 				else {
+ 					TRACE_ERROR("Default gateway settings in %s should "
+@@ -303,7 +250,6 @@ PrintRoutingTable()
+ {
+ 	int i;
+ 	uint8_t *da;
+-	uint8_t *sa;
+ 	uint8_t *m;
+ 	uint8_t *md;
+ 
+@@ -311,14 +257,13 @@ PrintRoutingTable()
+ 	TRACE_CONFIG("Routes:\n");
+ 	for (i = 0; i < CONFIG.routes; i++) {
+ 		da = (uint8_t *)&CONFIG.rtable[i].daddr;
+-		sa = (uint8_t *)&CONFIG.rtable[i].saddr;
+ 		m = (uint8_t *)&CONFIG.rtable[i].mask;
+ 		md = (uint8_t *)&CONFIG.rtable[i].masked;
+ 		TRACE_CONFIG("Destination: %u.%u.%u.%u/%d, Mask: %u.%u.%u.%u, "
+-				"Masked: %u.%u.%u.%u, Route: ifdx-%d <== SRC: %u.%u.%u.%u\n", 
++				"Masked: %u.%u.%u.%u, Route: ifdx-%d\n", 
+ 				da[0], da[1], da[2], da[3], CONFIG.rtable[i].prefix, 
+ 				m[0], m[1], m[2], m[3], md[0], md[1], md[2], md[3], 
+-				CONFIG.rtable[i].nif, sa[0], sa[1], sa[2], sa[3]);
++				CONFIG.rtable[i].nif);
+ 	}
+ 	if (CONFIG.routes == 0)
+ 		TRACE_CONFIG("(blank)\n");
+@@ -483,27 +428,13 @@ EnrollARPTableEntry(char *optstr)
+ 	dip_mask = MaskFromPrefix(prefix);
+ 	CONFIG.arp.entry[idx].ip_mask = dip_mask;
+ 	CONFIG.arp.entry[idx].ip_masked = CONFIG.arp.entry[idx].ip & dip_mask;
+-
+-	int j;
+-	for ( j = 0; j < ETH_NUM; j++)
+-	{
+-		if (CONFIG.gateway[j] && ((CONFIG.gateway[j])->daddr &
++	if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+ 			       CONFIG.arp.entry[idx].ip_mask) ==
+-			CONFIG.arp.entry[idx].ip_masked) {
+-			CONFIG.arp.gateway[j] = &CONFIG.arp.entry[idx];
+-			TRACE_CONFIG("ARP Gateway SET!\n");
+-			break;
+-		}
++	    CONFIG.arp.entry[idx].ip_masked) {
++		CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
++		TRACE_CONFIG("ARP Gateway SET!\n");
+ 	}
+ 
+-	// if (CONFIG.gateway && ((CONFIG.gateway)->daddr &
+-	// 			CONFIG.arp.entry[idx].ip_mask) ==
+-	// 			CONFIG.arp.entry[idx].ip_masked) {
+-	// 	CONFIG.arp.gateway = &CONFIG.arp.entry[idx];
+-	// 	TRACE_CONFIG("ARP Gateway SET!\n");
+-	// }
+-
+-
+ /*
+ 	int i, cnt;
+ 	cnt = 1;
+diff --git a/mtcp/src/include/arp.h b/mtcp/src/include/arp.h
+index 28163c32..c45befc0 100644
+--- a/mtcp/src/include/arp.h
++++ b/mtcp/src/include/arp.h
+@@ -10,7 +10,7 @@ unsigned char *
+ GetHWaddr(uint32_t ip);
+ 
+ unsigned char *
+-GetDestinationHWaddr(uint32_t dip, uint32_t sip, uint8_t is_gateway);
++GetDestinationHWaddr(uint32_t dip, uint8_t is_gateway);
+ 
+ void 
+ RequestARP(mtcp_manager_t mtcp, uint32_t ip, int nif, uint32_t cur_ts);
+diff --git a/mtcp/src/include/ip_out.h b/mtcp/src/include/ip_out.h
+index 585556ed..28034750 100644
+--- a/mtcp/src/include/ip_out.h
++++ b/mtcp/src/include/ip_out.h
+@@ -4,8 +4,8 @@
+ #include <stdint.h>
+ #include "tcp_stream.h"
+ 
+-extern inline int
+-GetOutputInterface(uint32_t daddr, uint32_t saddr, uint8_t *is_external);
++extern inline int 
++GetOutputInterface(uint32_t daddr, uint8_t *is_external);
+ 
+ void
+ ForwardIPv4Packet(mtcp_manager_t mtcp, int nif_in, char *buf, int len);
+diff --git a/mtcp/src/include/mptcp.h b/mtcp/src/include/mptcp.h
+deleted file mode 100644
+index e7b6f243..00000000
+--- a/mtcp/src/include/mptcp.h
++++ /dev/null
+@@ -1,107 +0,0 @@
+-#ifndef MPTCP_H
+-#define MPTCP_H
+-
+-#include <stdint.h>
+-#include "tcp_stream.h"
+-
+-// Constants and macros
+-// #define MPTCP_PORT 860  // You can choose an appropriate port number
+-// #define MAX_SUBFLOWS 4  // Maximum number of subflows you want to support
+-
+-// Multipath TCP option types
+-// #define MPTCP_OPTION_KIND_ADD_ADDR 0x0A
+-// #define MPTCP_OPTION_KIND_RM_ADDR 0x09
+-// #define MPTCP_OPTION_KIND_MP_CAPABLE 0x00
+-// #define MPTCP_OPTION_KIND_MP_JOIN 0x0E //check if correct value
+-
+-#define TCP_OPT_MPTCP 30 // You can choose an appropriate value not conflicting with existing TCP options
+-#define TCP_OPT_MPTCP_LEN 4 // You can choose an appropriate value not conflicting with existing TCP options
+-
+-#define TCP_MPTCP_SUBTYPE_CAPABLE 0
+-#define TCP_MPTCP_SUBTYPE_JOIN 1
+-#define TCP_MPTCP_VERSION 0
+-#define MPTCP_OPTION_CAPABLE 0
+-#define MPTCP_OPTION_JOIN 1
+-#define TCP_MPTCP_SUBTYPE_DSS 2
+-
+-#define MPTCP_OPT_CAPABLE_SYN_LEN 12
+-#define MPTCP_OPT_CAPABLE_SYNACK_LEN 12
+-#define MPTCP_OPT_CAPABLE_ACK_LEN 20
+-#define MPTCP_OPT_JOIN_SYN_LEN  12
+-#define MPTCP_OPT_JOIN_SYNACK_LEN 16
+-#define MPTCP_OPT_JOIN_ACK_LEN 24
+-
+-// forward declaration (mptcp_tcp_sock has mptcp_cb as a field)
+-typedef struct mptcp_cb mptcp_cb;
+-
+-typedef struct mptcp_tcp_sock{
+-    // these are just some random stuff i dont know why they are used
+-    uint8_t mptcp_enabled;
+-    uint8_t mptcp_version;
+-    uint8_t mptcp_subtype;
+-    uint8_t mptcp_sender_key;
+-    uint8_t mptcp_receiver_key;
+-    uint64_t mptcp_sender_token;
+-    uint64_t mptcp_receiver_token;
+-    uint64_t mptcp_data_ack;
+-    uint64_t mptcp_data_seq;
+-    uint64_t mptcp_data_fin_seq;
+-    uint64_t mptcp_data_fin_ack;
+-    uint64_t mptcp_data_len;
+-    uint64_t mptcp_data_fin_len;
+-    uint64_t mptcp_data_fin;
+-
+-    mptcp_cb *mptcp_cb;
+-
+-} mptcp_tcp_sock;
+-
+-struct mptcp_cb{
+-    // these are just some random stuff i dont know why they are used
+-    uint32_t my_idsn;
+-    uint32_t peer_idsn;
+-    uint64_t peerKey;
+-    uint32_t ack_to_send;
+-    uint32_t seq_no_to_send;
+-    struct tcp_stream *mpcb_stream;
+-    
+-    // why do I have to put struct in front of tcp_stream (else getting compiler error)
+-    struct tcp_stream *tcp_streams[10];
+-};
+-
+-
+-
+-// MPTCP header structure
+-// struct mptcp_hdr {
+-//     uint8_t flags;
+-//     uint8_t subflow_seqnum;
+-//     uint16_t checksum;
+-//     // Add more fields as needed
+-// };
+-
+-// MPTCP option header structure
+-struct mptcp_option {
+-    uint8_t kind;
+-    uint8_t length;
+-    // Add more fields as needed
+-};
+-
+-// MPTCP subflow information structure
+-// struct mptcp_subflow {
+-//     // Subflow-specific data and state
+-//     // Add more fields as needed
+-// };
+-
+-// MPTCP connection structure
+-// struct mptcp_connection {
+-//     struct mptcp_subflow subflows[MAX_SUBFLOWS];
+-//     // Connection-specific data and state
+-//     // Add more fields as needed
+-// };
+-
+-// Function prototypes
+-// void mptcp_init(struct mptcp_connection *conn);
+-// int mptcp_add_subflow(struct mptcp_connection *conn, const char *subflow_ip, uint16_t subflow_port);
+-// int mptcp_send(struct mptcp_connection *conn, const void *data, size_t length);
+-// int mptcp_receive(struct mptcp_connection *conn, void *buffer, size_t buffer_size);
+-
+-#endif /* MPTCP_H */
+\ No newline at end of file
+diff --git a/mtcp/src/include/mtcp.h b/mtcp/src/include/mtcp.h
+index 3d987c9f..791acf9b 100644
+--- a/mtcp/src/include/mtcp.h
++++ b/mtcp/src/include/mtcp.h
+@@ -126,7 +126,6 @@ struct eth_table
+ struct route_table
+ {
+ 	uint32_t daddr;
+-	uint32_t saddr; // source address (needed for multipath situations)
+ 	uint32_t mask;
+ 	uint32_t masked;
+ 	int prefix;
+@@ -145,7 +144,7 @@ struct arp_entry
+ struct arp_table
+ {
+ 	struct arp_entry *entry;
+-	struct arp_entry *gateway[ETH_NUM];
++	struct arp_entry *gateway;
+ 	int entries;
+ };
+ /*----------------------------------------------------------------------------*/
+@@ -158,8 +157,7 @@ struct mtcp_config
+ 
+ 	/* route config */
+ 	struct route_table *rtable;		// routing table
+-	struct route_table *gateway[ETH_NUM];
+-	int gatewayCount;	
++	struct route_table *gateway;	
+ 	int routes;						// # of entries
+ 
+ 	/* arp config */
+diff --git a/mtcp/src/include/mtcp_api.h b/mtcp/src/include/mtcp_api.h
+index 37b4b485..0a1ee40f 100644
+--- a/mtcp/src/include/mtcp_api.h
++++ b/mtcp/src/include/mtcp_api.h
+@@ -4,7 +4,6 @@
+ #include <stdint.h>
+ #include <netinet/in.h>
+ #include <sys/uio.h>
+-// #include "mptcp.h"
+ 
+ #ifndef UNUSED
+ #define UNUSED(x)	(void)x
+@@ -105,11 +104,9 @@ int
+ mtcp_init_rss(mctx_t mctx, in_addr_t saddr_base, int num_addr, 
+ 		in_addr_t daddr, in_addr_t dport);
+ 
+-typedef struct mptcp_cb mptcp_cb;
+-
+ int 
+ mtcp_connect(mctx_t mctx, int sockid, 
+-		const struct sockaddr *addr, socklen_t addrlen, mptcp_cb *mptcp_cb);
++		const struct sockaddr *addr, socklen_t addrlen);
+ 
+ int 
+ mtcp_close(mctx_t mctx, int sockid);
+diff --git a/mtcp/src/include/tcp_out.h b/mtcp/src/include/tcp_out.h
+index 25a67190..94dacef5 100644
+--- a/mtcp/src/include/tcp_out.h
++++ b/mtcp/src/include/tcp_out.h
+@@ -20,7 +20,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
+ 
+ int
+ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
+-		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen, uint8_t isControlMsg);
++		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen);
+ 
+ extern inline int 
+ WriteTCPControlList(mtcp_manager_t mtcp, 
+diff --git a/mtcp/src/include/tcp_stream.h b/mtcp/src/include/tcp_stream.h
+index cf5618f1..9dd48d9a 100644
+--- a/mtcp/src/include/tcp_stream.h
++++ b/mtcp/src/include/tcp_stream.h
+@@ -10,8 +10,6 @@
+ #include "pacing.h"
+ #endif
+ 
+-#include "mptcp.h"
+-
+ struct rtm_stat
+ {
+ 	uint32_t tdp_ack_cnt;
+@@ -184,11 +182,6 @@ typedef struct tcp_stream
+ 	uint8_t need_wnd_adv;
+ 	int16_t on_rto_idx;
+ 
+-	mptcp_tcp_sock *mptcp_sock;
+-	mptcp_cb *mptcp_cb;
+-	uint8_t isReceivedMPCapableSYN;
+-	uint64_t peerKey;
+-
+ 	uint16_t on_timeout_list:1, 
+ 			on_rcv_br_list:1, 
+ 			on_snd_br_list:1, 
+@@ -219,8 +212,6 @@ typedef struct tcp_stream
+ 	
+ 	uint32_t last_active_ts;		/* ts_last_ack_sent or ts_last_ts_upd */
+ 
+-	uint8_t isMPJOINStream;
+-
+ } tcp_stream;
+ 
+ extern inline char *
+@@ -262,10 +253,6 @@ tcp_stream *
+ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+ 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport);
+ 
+-tcp_stream *
+-CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+-		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport);
+-
+ void
+ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream);
+ 
+diff --git a/mtcp/src/include/tcp_util.h b/mtcp/src/include/tcp_util.h
+index 2dc84e9d..d4d338f3 100644
+--- a/mtcp/src/include/tcp_util.h
++++ b/mtcp/src/include/tcp_util.h
+@@ -25,10 +25,6 @@ struct tcp_timestamp
+ void ParseTCPOptions(tcp_stream *cur_stream,
+ 		        uint32_t cur_ts, uint8_t *tcpopt, int len);
+ 
+-uint8_t 
+-ParseMPTCPOptions(tcp_stream *cur_stream, 
+-		uint32_t cur_ts, uint8_t *tcpopt, int len);
+-
+ extern inline int
+ ParseTCPTimestamp(tcp_stream *cur_stream,
+ 		        struct tcp_timestamp *ts, uint8_t *tcpopt, int len);
+@@ -48,17 +44,4 @@ TCPCalcChecksum(uint16_t *buf, uint16_t len, uint32_t saddr, uint32_t daddr);
+ void
+ PrintTCPOptions(uint8_t *tcpopt, int len);
+ 
+-uint64_t 
+-GetPeerKey(tcp_stream *cur_stream, 
+-		uint32_t cur_ts, uint8_t *tcpopt, int len);
+-
+-uint32_t
+-GetPeerIdsnFromKey(uint64_t key);
+-
+-uint32_t
+-GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len);
+-
+-uint32_t
+-GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len);
+-
+ #endif /* TCP_UTIL_H */	
+diff --git a/mtcp/src/ip_out.c b/mtcp/src/ip_out.c
+index a28f80a2..d4482d2b 100644
+--- a/mtcp/src/ip_out.c
++++ b/mtcp/src/ip_out.c
+@@ -5,14 +5,12 @@
+ #include "debug.h"
+ 
+ /*----------------------------------------------------------------------------*/
+-// Modified to include the source address as well (needed for multipath situations)
+ inline int
+-GetOutputInterface(uint32_t daddr, uint32_t saddr, uint8_t *is_external)
++GetOutputInterface(uint32_t daddr, uint8_t *is_external)
+ {
+ 	int nif = -1;
+ 	int i;
+ 	int prefix = 0;
+-	int j;
+ 
+ 	*is_external = 0;
+ 	/* Longest prefix matching */
+@@ -21,22 +19,9 @@ GetOutputInterface(uint32_t daddr, uint32_t saddr, uint8_t *is_external)
+ 			if (CONFIG.rtable[i].prefix > prefix) {
+ 				nif = CONFIG.rtable[i].nif;
+ 				prefix = CONFIG.rtable[i].prefix;
+-			} else {
+-				if (saddr == 0)
+-				{
+-					*is_external = 1;
+-					nif = (CONFIG.gateway[0])->nif;
+-				}
+-				else{
+-				
+-					for ( j = 0; j < CONFIG.gatewayCount; j++)
+-					{
+-						if (CONFIG.gateway[j] && CONFIG.gateway[j]->saddr == saddr){
+-							*is_external = 1;
+-							nif = (CONFIG.gateway[j])->nif;
+-						}
+-					}
+-				}
++			} else if (CONFIG.gateway) {
++				*is_external = 1;
++				nif = (CONFIG.gateway)->nif;
+ 			}
+ 			break;
+ 		}
+@@ -60,14 +45,12 @@ IPOutputStandalone(struct mtcp_manager *mtcp, uint8_t protocol,
+ 	int nif;
+ 	unsigned char * haddr, is_external;
+ 	int rc = -1;
+-	int j;
+ 
+-
+-	nif = GetOutputInterface(daddr, saddr, &is_external);
++	nif = GetOutputInterface(daddr, &is_external);
+ 	if (nif < 0)
+ 		return NULL;
+ 
+-	haddr = GetDestinationHWaddr(daddr, saddr, is_external);
++	haddr = GetDestinationHWaddr(daddr, is_external);
+ 	if (!haddr) {
+ #if 0
+ 		uint8_t *da = (uint8_t *)&daddr;
+@@ -75,16 +58,11 @@ IPOutputStandalone(struct mtcp_manager *mtcp, uint8_t protocol,
+ 				"is not in ARP table!\n",
+ 				da[0], da[1], da[2], da[3]);
+ #endif
+-		for(j = 0; j < CONFIG.gatewayCount; j++)
+-		{
+-			if (CONFIG.gateway[j]->saddr == saddr){
+-				RequestARP(mtcp, (is_external) ? ((CONFIG.gateway[j])->daddr) : daddr,
++		RequestARP(mtcp, (is_external) ? ((CONFIG.gateway)->daddr) : daddr,
+ 			   nif, mtcp->cur_ts);
+-			}
+-		}
+ 		return NULL;
+ 	}
+-
++	
+ 	iph = (struct iphdr *)EthernetOutput(mtcp, 
+ 			ETH_P_IP, nif, haddr, payloadlen + IP_HEADER_LEN);
+ 	if (!iph) {
+@@ -132,17 +110,16 @@ IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen)
+ 	int nif;
+ 	unsigned char *haddr, is_external = 0;
+ 	int rc = -1;
+-	int j;
+ 
+ 	if (stream->sndvar->nif_out >= 0) {
+ 		nif = stream->sndvar->nif_out;
+ 	} else {
+-		nif = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
++		nif = GetOutputInterface(stream->daddr, &is_external);
+ 		stream->sndvar->nif_out = nif;
+ 		stream->is_external = is_external;
+ 	}
+ 
+-	haddr = GetDestinationHWaddr(stream->daddr, stream->saddr, stream->is_external);
++	haddr = GetDestinationHWaddr(stream->daddr, stream->is_external);
+ 	if (!haddr) {
+ #if 0
+ 		uint8_t *da = (uint8_t *)&stream->daddr;
+@@ -152,14 +129,8 @@ IPOutput(struct mtcp_manager *mtcp, tcp_stream *stream, uint16_t tcplen)
+ #endif
+ 		/* if not found in the arp table, send arp request and return NULL */
+ 		/* tcp will retry sending the packet later */
+-		for(j = 0; j < CONFIG.gatewayCount; j++)
+-		{
+-			if (CONFIG.gateway[j]->saddr == stream->saddr){
+-				RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway[j])->daddr : stream->daddr,
++		RequestARP(mtcp, (stream->is_external) ? (CONFIG.gateway)->daddr : stream->daddr,
+ 			   stream->sndvar->nif_out, mtcp->cur_ts);
+-			}
+-		}
+-		
+ 		return NULL;
+ 	}
+ 	
+diff --git a/mtcp/src/tcp_in.c b/mtcp/src/tcp_in.c
+index 37d0143f..5d984a7e 100644
+--- a/mtcp/src/tcp_in.c
++++ b/mtcp/src/tcp_in.c
+@@ -11,7 +11,6 @@
+ #include "timer.h"
+ #include "ip_in.h"
+ #include "clock.h"
+-#include "mptcp.h"
+ #if USE_CCP
+ #include "ccp.h"
+ #endif
+@@ -751,13 +750,6 @@ static inline void
+ Handle_TCP_ST_LISTEN (mtcp_manager_t mtcp, uint32_t cur_ts, 
+ 		tcp_stream* cur_stream, struct tcphdr* tcph) {
+ 	
+-	// Have to check for MP options here
+-	// use something like ParseMPTCP options
+-	uint8_t mptcp_option = ParseMPTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+-	if (mptcp_option == MPTCP_OPTION_CAPABLE) {
+-		cur_stream->isReceivedMPCapableSYN = 1;
+-	}
+-
+ 	if (tcph->syn) {
+ 		if (cur_stream->state == TCP_ST_LISTEN)
+ 			cur_stream->rcv_nxt++;
+@@ -776,13 +768,6 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
+ 		tcp_stream* cur_stream, const struct iphdr* iph, struct tcphdr* tcph,
+ 		uint32_t seq, uint32_t ack_seq, int payloadlen, uint16_t window)
+ {
+-
+-	// creating the structures in case of MP_CAPABLE reply
+-	// tcp_stream first_subflow = *cur_stream;
+-	// tcp_stream *meta_sock; 
+-	// int ret;
+-	uint64_t peerKey;
+-
+ 	/* when active open */
+ 	if (tcph->ack) {
+ 		/* filter the unacceptable acks */
+@@ -814,35 +799,6 @@ Handle_TCP_ST_SYN_SENT (mtcp_manager_t mtcp, uint32_t cur_ts,
+ 
+ 	if (tcph->syn) {
+ 		if (tcph->ack) {
+-
+-			// Can we use ParseMPTCPOptions??
+-			// peerKey = ParseMPTCPOptions(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+-			peerKey = GetPeerKey(cur_stream, cur_ts, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+-			
+-			if(peerKey != 0){
+-				cur_stream->peerKey = peerKey;
+-				// Which means can that peer supports MPTCP
+-				cur_stream->mptcp_cb = (mptcp_cb *)calloc(1, sizeof(mptcp_cb));
+-				// Have to initialize the tcp_stream of mpcb here
+-				// and set the variables
+-				socket_map_t socket;
+-				socket = cur_stream->socket;
+-				cur_stream->mptcp_cb->mpcb_stream = CreateMpcbTCPStream(mtcp, socket, socket->socktype, socket->saddr.sin_addr.s_addr, socket->saddr.sin_port, cur_stream->daddr, cur_stream->dport);
+-				if (cur_stream->mptcp_cb->mpcb_stream->rcvvar->rcvbuf != NULL)
+-				{
+-				}
+-				
+-				cur_stream->mptcp_cb->tcp_streams[0] = cur_stream;
+-				cur_stream->mptcp_cb->peer_idsn = GetPeerIdsnFromKey(peerKey);
+-				cur_stream->mptcp_cb->mpcb_stream->rcvvar->irs = GetPeerIdsnFromKey(peerKey);
+-				cur_stream->mptcp_cb->mpcb_stream->sndvar->iss = 1285339236;
+-				cur_stream->mptcp_cb->my_idsn = 1285339236;
+-				cur_stream->mptcp_cb->peerKey = peerKey;
+-				cur_stream->mptcp_cb->mpcb_stream->snd_nxt = cur_stream->mptcp_cb->my_idsn + 1;
+-				cur_stream->mptcp_cb->mpcb_stream->rcv_nxt = cur_stream->mptcp_cb->peer_idsn + 1;
+-				cur_stream->mptcp_cb->mpcb_stream->state = TCP_ST_ESTABLISHED;
+-			}
+-		
+ 			int ret = HandleActiveOpen(mtcp, 
+ 					cur_stream, cur_ts, tcph, seq, ack_seq, window);
+ 			if (!ret) {
+@@ -961,33 +917,11 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
+ 		return;
+ 	}
+ 
+-	// get data seq if avaible
+-	uint32_t dataSeq;
+-	if(cur_stream->mptcp_cb != NULL){
+-		dataSeq = GetDataSeq(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+-		if (dataSeq > 0){
+-		}
+-
+-	}
+-	
+-	// Need to add the data into the mpcb rcv buf after adding to normal rcv buf
+-	// which is done in the ProcessTCPPayload function
+-	// after adding to mpcb rcv buf need to send a DATAACK through any ofthe subflows
+-	// Just like senfing a normal data
+-
+ 	if (payloadlen > 0) {
+ 		if (ProcessTCPPayload(mtcp, cur_stream, 
+ 				cur_ts, payload, seq, payloadlen)) {
+ 			/* if return is TRUE, send ACK */
+ 			EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_AGGREGATE);
+-
+-			if (cur_stream->mptcp_cb != NULL)
+-			{
+-				CopyFromSubflowToMpcb(mtcp, cur_stream->mptcp_cb->mpcb_stream, cur_stream, dataSeq);
+-			}
+-			
+-			
+-
+ 		} else {
+ 			EnqueueACK(mtcp, cur_stream, cur_ts, ACK_OPT_NOW);
+ 		}
+@@ -1000,9 +934,6 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
+ 		}
+ 	}
+ 
+-	// In a similar way have to process DATA_ACK
+-	uint32_t dataAck = GetDataAck(cur_stream, (uint8_t *)tcph + TCP_HEADER_LEN, (tcph->doff << 2) - TCP_HEADER_LEN);
+-
+ 	if (tcph->fin) {
+ 		/* process the FIN only if the sequence is valid */
+ 		/* FIN packet is allowed to push payload (should we check for PSH flag)? */
+@@ -1019,7 +950,6 @@ Handle_TCP_ST_ESTABLISHED (mtcp_manager_t mtcp, uint32_t cur_ts,
+ 			return;
+ 		}
+ 	}
+-
+ }
+ /*----------------------------------------------------------------------------*/
+ static inline void 
+@@ -1327,7 +1257,6 @@ ProcessTCPPacket(mtcp_manager_t mtcp,
+ 			return TRUE;
+ 	}
+ 
+-
+ 	/* Validate sequence. if not valid, ignore the packet */
+ 	if (cur_stream->state > TCP_ST_SYN_RCVD) {
+ 		ret = ValidateSequence(mtcp, cur_stream, 
+@@ -1437,62 +1366,3 @@ ProcessTCPPacket(mtcp_manager_t mtcp,
+ 
+ 	return TRUE;
+ }
+-
+-
+-int CopyFromSubflowToMpcb(mtcp_manager_t mtcp, tcp_stream *mpcb_stream, tcp_stream *subflow_stream, uint32_t data_seq){
+-
+-	struct tcp_recv_vars *subflow_rcvvar = subflow_stream->rcvvar;
+-	uint32_t subflow_prev_rcv_wnd;
+-	int copylen;
+-
+-	// copylen = MIN(subflow_rcvvar->rcvbuf->merged_len, len);
+-	copylen = subflow_rcvvar->rcvbuf->merged_len;
+-	if (copylen <= 0) {
+-		errno = EAGAIN;
+-		return -1;
+-	}
+-
+-	subflow_prev_rcv_wnd = subflow_rcvvar->rcv_wnd;
+-
+-	/* Copy data to user buffer and remove it from receiving buffer */
+-	//memcpy(buf, subflow_rcvvar->rcvbuf->head, copylen);
+-
+-	//copy into mpcb rcvbuf
+-	struct tcp_recv_vars *mpcb_rcvvar = mpcb_stream->rcvvar;
+-	uint32_t mpcb_prev_rcv_nxt;
+-	int ret;
+-
+-	/* allocate receive buffer if not exist */
+-	if (!mpcb_rcvvar->rcvbuf) {
+-		mpcb_rcvvar->rcvbuf = RBInit(mtcp->rbm_rcv, mpcb_rcvvar->irs + 1);
+-		if (!mpcb_rcvvar->rcvbuf) {
+-			TRACE_ERROR("Stream %d: Failed to allocate receive buffer.\n", 
+-					mpcb_stream->id);
+-			mpcb_stream->state = TCP_ST_CLOSED;
+-			mpcb_stream->close_reason = TCP_NO_MEM;
+-			RaiseErrorEvent(mtcp, mpcb_stream);
+-
+-			return ERROR;
+-		}
+-	}
+-
+-	if (SBUF_LOCK(&mpcb_rcvvar->read_lock)) {
+-		if (errno == EDEADLK)
+-			perror("ProcessTCPPayload: read_lock blocked\n");
+-		assert(0);
+-	}
+-
+-	mpcb_prev_rcv_nxt = mpcb_stream->rcv_nxt;
+-	ret = RBPut(mtcp->rbm_rcv, 
+-			mpcb_rcvvar->rcvbuf, subflow_rcvvar->rcvbuf->head, (uint32_t)copylen, data_seq);
+-	if (ret < 0) {
+-		TRACE_ERROR("Cannot merge payload. reason: %d\n", ret);
+-	}
+-	RBRemove(mtcp->rbm_rcv, subflow_rcvvar->rcvbuf, copylen, AT_APP);
+-	subflow_rcvvar->rcv_wnd = subflow_rcvvar->rcvbuf->size - subflow_rcvvar->rcvbuf->merged_len;
+-
+-	mpcb_stream->rcv_nxt = mpcb_rcvvar->rcvbuf->head_seq + mpcb_rcvvar->rcvbuf->merged_len;
+-	mpcb_rcvvar->rcv_wnd = mpcb_rcvvar->rcvbuf->size - mpcb_rcvvar->rcvbuf->merged_len;
+-
+-	SBUF_UNLOCK(&mpcb_rcvvar->read_lock);
+-}
+\ No newline at end of file
+diff --git a/mtcp/src/tcp_out.c b/mtcp/src/tcp_out.c
+index 0e90fc9b..8348357d 100644
+--- a/mtcp/src/tcp_out.c
++++ b/mtcp/src/tcp_out.c
+@@ -8,8 +8,6 @@
+ #include "eventpoll.h"
+ #include "timer.h"
+ #include "debug.h"
+-#include "mptcp.h"
+-#include <endian.h>
+ #if RATE_LIMIT_ENABLED || PACING_ENABLED
+ #include "pacing.h"
+ #endif
+@@ -44,8 +42,6 @@ CalculateOptionLength(uint8_t flags)
+ 
+ 		optlen += TCP_OPT_WSCALE_LEN + 1;
+ 
+-
+-
+ 	} else {
+ 
+ #if TCP_OPT_TIMESTAMP_ENABLED
+@@ -59,184 +55,6 @@ CalculateOptionLength(uint8_t flags)
+ #endif
+ 	}
+ 
+-	assert(optlen % 4 == 0);
+-
+-	return optlen;
+-}
+-/*----------------------------------------------------------------------------*/
+-static inline uint16_t
+-CalculateOptionLengthMPTCP(uint8_t flags, uint8_t mptcp_option, uint16_t payloadlen)
+-{
+-	uint16_t optlen = 0;
+-
+-// 	if (flags & TCP_FLAG_SYN) {
+-// 		optlen += TCP_OPT_MSS_LEN;
+-// #if TCP_OPT_SACK_ENABLED
+-// 		optlen += TCP_OPT_SACK_PERMIT_LEN;
+-// #if !TCP_OPT_TIMESTAMP_ENABLED
+-// 		optlen += 2;  // insert NOP padding
+-// #endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-// #endif /* TCP_OPT_SACK_ENABLED */
+-
+-// #if TCP_OPT_TIMESTAMP_ENABLED
+-// 		optlen += TCP_OPT_TIMESTAMP_LEN;
+-// #if !TCP_OPT_SACK_ENABLED
+-// 		optlen += 2;  // insert NOP padding
+-// #endif /* TCP_OPT_SACK_ENABLED */
+-// #endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-
+-// 		optlen += TCP_OPT_WSCALE_LEN + 1;
+-
+-// 		if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+-// 			// Add the length of the MP_CAPABLE option
+-// 			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
+-// 			// // If its a SYN/ACK
+-// 			// if (flags & TCP_FLAG_ACK){
+-// 			// 	optlen += 8;
+-// 			// }
+-// 		}
+-
+-// 		// if (mptcp_option & MPTCP_OPTION_JOIN) {
+-// 		// 	// Add the length of the MP_JOIN option
+-// 		// 	optlen += MPTCP_OPT_JOIN_SYN_LEN;
+-// 		// 	// // If its a SYN/ACK
+-// 		// 	// if (flags & TCP_FLAG_ACK){
+-// 		// 	// 	optlen += 4;
+-// 		// 	// }
+-// 		// }
+-
+-// 	} else {
+-
+-// #if TCP_OPT_TIMESTAMP_ENABLED
+-// 		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+-// #endif
+-
+-// #if TCP_OPT_SACK_ENABLED
+-// 		if (flags & TCP_FLAG_SACK) {
+-// 			optlen += TCP_OPT_SACK_LEN + 2;
+-// 		}
+-// #endif
+-// 		// If its a ACK
+-// 		if(flags & TCP_FLAG_ACK){
+-// 			if (mptcp_option & MPTCP_OPTION_CAPABLE) {
+-// 				// Add the length of the MP_CAPABLE option
+-// 				optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
+-// 			}
+-
+-// 			if (mptcp_option & MPTCP_OPTION_JOIN) {
+-// 					// Add the length of the MP_JOIN option
+-// 					optlen += MPTCP_OPT_JOIN_ACK_LEN;
+-// 			}
+-// 		}
+-// 	}
+-
+-
+-	// ----------------------------------------------------------------
+-
+-	if(flags == TCP_FLAG_SYN){
+-
+-
+-		optlen += TCP_OPT_MSS_LEN;
+-#if TCP_OPT_SACK_ENABLED
+-		optlen += TCP_OPT_SACK_PERMIT_LEN;
+-#if !TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += 2;  // insert NOP padding
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-#endif /* TCP_OPT_SACK_ENABLED */
+-
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += TCP_OPT_TIMESTAMP_LEN;
+-#if !TCP_OPT_SACK_ENABLED
+-		optlen += 2;  // insert NOP padding
+-#endif /* TCP_OPT_SACK_ENABLED */
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-
+-		optlen += TCP_OPT_WSCALE_LEN + 1;
+-
+-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+-			optlen += MPTCP_OPT_CAPABLE_SYN_LEN;
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-			optlen += 12;
+-		}
+-		else{
+-
+-		}
+-	}
+-	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
+-
+-		optlen += TCP_OPT_MSS_LEN;
+-#if TCP_OPT_SACK_ENABLED
+-		optlen += TCP_OPT_SACK_PERMIT_LEN;
+-#if !TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += 2;  // insert NOP padding
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-#endif /* TCP_OPT_SACK_ENABLED */
+-
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += TCP_OPT_TIMESTAMP_LEN;
+-#if !TCP_OPT_SACK_ENABLED
+-		optlen += 2;  // insert NOP padding
+-#endif /* TCP_OPT_SACK_ENABLED */
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-
+-		optlen += TCP_OPT_WSCALE_LEN + 1;
+-
+-		optlen += TCP_OPT_WSCALE_LEN + 1;
+-
+-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+-			optlen += MPTCP_OPT_CAPABLE_SYNACK_LEN;
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-			optlen += 16;
+-		}
+-		else{
+-
+-		}
+-
+-	}
+-	else if (flags == TCP_FLAG_ACK && payloadlen == 0)
+-	{
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+-#endif
+-
+-#if TCP_OPT_SACK_ENABLED
+-		if (flags & TCP_FLAG_SACK) {
+-			optlen += TCP_OPT_SACK_LEN + 2;
+-		}
+-#endif
+-
+-		if (mptcp_option == MPTCP_OPTION_CAPABLE) {
+-			optlen += MPTCP_OPT_CAPABLE_ACK_LEN;
+-
+-			// For the DATA ACK sent along with this
+-			optlen += 8;
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-			optlen += 24;
+-		}
+-
+-
+-	}
+-	else{
+-		
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-		optlen += TCP_OPT_TIMESTAMP_LEN + 2;
+-#endif
+-
+-#if TCP_OPT_SACK_ENABLED
+-		if (flags & TCP_FLAG_SACK) {
+-			optlen += TCP_OPT_SACK_LEN + 2;
+-		}
+-#endif
+-		if(payloadlen > 0){
+-			optlen += 20;
+-		}
+-	}
+-	
+-
+-
+ 	assert(optlen % 4 == 0);
+ 
+ 	return optlen;
+@@ -255,15 +73,13 @@ GenerateTCPTimestamp(tcp_stream *cur_stream, uint8_t *tcpopt, uint32_t cur_ts)
+ /*----------------------------------------------------------------------------*/
+ static inline void
+ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts, 
+-		uint8_t flags, uint8_t *tcpopt, uint16_t optlen, uint8_t isControlMsg, uint8_t mptcp_option, uint16_t payloadlen)
++		uint8_t flags, uint8_t *tcpopt, uint16_t optlen)
+ {
+ 	int i = 0;
+ 
+-	if (flags == TCP_FLAG_SYN){
+-
++	if (flags & TCP_FLAG_SYN) {
+ 		uint16_t mss;
+ 
+-		
+ 		/* MSS option */
+ 		mss = cur_stream->sndvar->mss;
+ 		tcpopt[i++] = TCP_OPT_MSS;
+@@ -271,59 +87,6 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
+ 		tcpopt[i++] = mss >> 8;
+ 		tcpopt[i++] = mss % 256;
+ 
+-		// MPTCP
+-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYN_LEN;
+-
+-			// MPTCP MP_CAPABLE Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+-		
+-			// Add Checksum required & HMAC-SHA1 (A, H set) -> 0x81
+-			// Later i changed to no Checksum (Because DSS have to do later)
+-			// TODO: (above)
+-			tcpopt[i++] = 0x01;
+-
+-			// Add Sender's Key (64 bit)
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00; 
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x10; 
+-
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = 12;
+-
+-			// MPTCP MP_JOIN Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+-		
+-			//Address ID
+-			tcpopt[i++] = 0x01;
+-
+-			// Reciver's Token (32 bits)
+-			
+-
+-			// Sender's Random Number (32 bits)
+-			
+-
+-		}
+-		else{
+-
+-		}
+-
+ 		/* SACK permit */
+ #if TCP_OPT_SACK_ENABLED
+ #if !TCP_OPT_TIMESTAMP_ENABLED
+@@ -350,165 +113,9 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
+ 		tcpopt[i++] = TCP_OPT_WSCALE;
+ 		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
+ 		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
+-		
+-	}
+-	else if(flags == (TCP_FLAG_SYN | TCP_FLAG_ACK)){
+-
+-		// MPTCP
+-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYNACK_LEN;
+ 
+-			// MPTCP MP_CAPABLE Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+-		
+-			// Add Checksum required & HMAC-SHA1 (A, H set)
+-			tcpopt[i++] = 0x01;
+-
+-			// Add Sender's Key (64 bit)
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00; 
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x00;
+-			tcpopt[i++] = 0x10; 
+-			
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = MPTCP_OPT_CAPABLE_SYNACK_LEN;
+-
+-			// MPTCP MP_JOIN Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+-		
+-			// ....rest needs to fill in
+-		}
+-		else{
+-
+-		}
+-		
+-		/* SACK permit */
+-#if TCP_OPT_SACK_ENABLED
+-#if !TCP_OPT_TIMESTAMP_ENABLED
+-		tcpopt[i++] = TCP_OPT_NOP;
+-		tcpopt[i++] = TCP_OPT_NOP;
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-		tcpopt[i++] = TCP_OPT_SACK_PERMIT;
+-		tcpopt[i++] = TCP_OPT_SACK_PERMIT_LEN;
+-		TRACE_SACK("Local SACK permited.\n");
+-#endif /* TCP_OPT_SACK_ENABLED */
+-
+-		/* Timestamp */
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-#if !TCP_OPT_SACK_ENABLED
+-		tcpopt[i++] = TCP_OPT_NOP;
+-		tcpopt[i++] = TCP_OPT_NOP;
+-#endif /* TCP_OPT_SACK_ENABLED */
+-		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+-		i += TCP_OPT_TIMESTAMP_LEN;
+-#endif /* TCP_OPT_TIMESTAMP_ENABLED */
+-
+-		/* Window scale */
+-		tcpopt[i++] = TCP_OPT_NOP;
+-		tcpopt[i++] = TCP_OPT_WSCALE;
+-		tcpopt[i++] = TCP_OPT_WSCALE_LEN;
+-		tcpopt[i++] = cur_stream->sndvar->wscale_mine;
+-		
+-	}
+-	else if(flags == TCP_FLAG_ACK && payloadlen == 0){
+-
+-
+-		// MPTCP
+-		if(mptcp_option == MPTCP_OPTION_CAPABLE){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = MPTCP_OPT_CAPABLE_ACK_LEN;
+-
+-			// MPTCP MP_CAPABLE Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_CAPABLE << 4) | TCP_MPTCP_VERSION);
+-
+-			// Add Checksum required & HMAC-SHA1 (A, H set)
+-			tcpopt[i++] = 0x01;
+-		
+-			// Sender's 64 bit Key (changed endianness)
+-			*((uint64_t*)(tcpopt + (i))) = 0x1000000000000000;
+-
+-			i += 8;
+-
+-			// Reciver's 64 bit Key
+-			// TODO: Have to check first if the key is already set
+-			*((uint64_t*)(tcpopt + (i))) = htobe64(cur_stream->peerKey);
+-
+-			i += 8;
+-
+-
+-			// Add Data ACK option as well
+-			// Add MPTCP option Kind
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length = 8 (for ACK only)
+-			tcpopt[i++] = 8;
+-
+-			// MPTCP DSS Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0);
+-
+-			// Flags (Data ACK present)
+-			tcpopt[i++] = 0x01;
+-
+-			// Data ACK
+-			*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->rcv_nxt);
+-
+-			i += 4;
+-
+-		}
+-		else if(mptcp_option == MPTCP_OPTION_JOIN){
+-
+-			/* MPTCP Option Kind */
+-			tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-			// Length
+-			tcpopt[i++] = 4;
+-
+-			// MPTCP MP_JOIN Subtype
+-			tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_JOIN << 4) | TCP_MPTCP_VERSION);
+-		
+-			// ....rest needs to fill in
+-		}
+-		else{
+-			
+-		}
+-		
+-
+-#if TCP_OPT_TIMESTAMP_ENABLED
+-		tcpopt[i++] = TCP_OPT_NOP;
+-		tcpopt[i++] = TCP_OPT_NOP;
+-		GenerateTCPTimestamp(cur_stream, tcpopt + i, cur_ts);
+-		i += TCP_OPT_TIMESTAMP_LEN;
+-#endif
++	} else {
+ 
+-#if TCP_OPT_SACK_ENABLED
+-		if (flags & TCP_OPT_SACK) {
+-			// i += GenerateSACKOption(cur_stream, tcpopt + i);
+-		}
+-#endif
+-		
+-		
+-	}
+-	else{
+-		
+ #if TCP_OPT_TIMESTAMP_ENABLED
+ 		tcpopt[i++] = TCP_OPT_NOP;
+ 		tcpopt[i++] = TCP_OPT_NOP;
+@@ -523,56 +130,6 @@ GenerateTCPOptions(tcp_stream *cur_stream, uint32_t cur_ts,
+ #endif
+ 	}
+ 
+-
+-
+-	// Check if no SYN, because no SYN means data right?
+-	// or just check payload length?
+-	if(payloadlen > 0){
+-		// Add DSS option
+-
+-		// Add MPTCP option Kind
+-		tcpopt[i++] = TCP_OPT_MPTCP;
+-
+-		// Length = 18 (if using 4 octets for Data Sequence No) & No Checksum
+-		tcpopt[i++] = 20;
+-
+-		// MPTCP DSS Subtype
+-		tcpopt[i++] = ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0);
+-
+-		// Flags (Data sequence and ACK present)
+-		tcpopt[i++] = 0x05;
+-
+-		// Data ACK
+-		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->rcv_nxt);
+-
+-		i += 4;
+-
+-		// Data Sequence Number
+-		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->mptcp_cb->mpcb_stream->snd_nxt);
+-
+-		cur_stream->mptcp_cb->mpcb_stream->snd_nxt += payloadlen;
+-		
+-		i += 4;
+-
+-		// Subflow Sequence Number
+-		*((uint32_t*)(tcpopt + (i))) = htobe32(cur_stream->snd_nxt - cur_stream->sndvar->iss);
+-		// *((uint32_t*)(tcpopt + (i))) = htobe32(1);
+-
+-		i += 4;
+-
+-		// Data Level Length
+-		*((uint16_t*)(tcpopt + (i))) = htobe16(payloadlen);
+-
+-		i += 2;
+-
+-
+-		// Put some dummy values for the checksum
+-		*((uint16_t*)(tcpopt + (i))) = htobe16(0x0000);
+-
+-		i += 2;
+-
+-
+-	}
+ 	assert (i == optlen);
+ }
+ /*----------------------------------------------------------------------------*/
+@@ -646,7 +203,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
+ #ifndef DISABLE_HWCSUM
+ 	uint8_t is_external;
+ 	if (mtcp->iom->dev_ioctl != NULL)
+-		rc = mtcp->iom->dev_ioctl(mtcp->ctx, GetOutputInterface(daddr, saddr, &is_external),
++		rc = mtcp->iom->dev_ioctl(mtcp->ctx, GetOutputInterface(daddr, &is_external),
+ 					  PKT_TX_TCPIP_CSUM, NULL);
+ 	UNUSED(is_external);
+ #endif
+@@ -665,7 +222,7 @@ SendTCPPacketStandalone(struct mtcp_manager *mtcp,
+ /*----------------------------------------------------------------------------*/
+ int
+ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream, 
+-		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen, uint8_t isControlMsg)
++		uint32_t cur_ts, uint8_t flags, uint8_t *payload, uint16_t payloadlen)
+ {
+ 	struct tcphdr *tcph;
+ 	uint16_t optlen;
+@@ -673,32 +230,9 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
+ 	uint32_t window32 = 0;
+ 	int rc = -1;
+ 
+-	uint8_t mptcp_option = MPTCP_OPTION_CAPABLE;
+-
+-	if (cur_stream->isMPJOINStream)
+-	{
+-		mptcp_option = MPTCP_OPTION_JOIN;
+-	}
+-	
+-
+-	// first check if sending MP_CAPABLE OR MP_JOIN
+-	// if(cur_stream->socket->stream != (struct tcp_stream*)(&cur_stream)){
+-	// 	// this is not the first subflow
+-	// 	mptcp_option = MPTCP_OPTION_JOIN;
+-	// }
+-
+-	// If sending a SYN/ACK have to check if first SYN was with MP_CAPABLE OR NOT
+-	// Can we use isControlMsg for that also? as in set isControlMsg to 0 if its is a normal SYN/ACK
+-	if(isControlMsg){
+-		optlen = CalculateOptionLengthMPTCP(flags, mptcp_option, payloadlen);
+-	}else{
+-		optlen = CalculateOptionLength(flags);
+-	}
+-	
+-
++	optlen = CalculateOptionLength(flags);
+ 	if (payloadlen + optlen > cur_stream->sndvar->mss) {
+ 		TRACE_ERROR("Payload size exceeds MSS\n");
+-		sleep(5);
+ 		return ERROR;
+ 	}
+ 
+@@ -767,7 +301,6 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
+ 		wscale = cur_stream->sndvar->wscale_mine;
+ 	}
+ 
+-	//TODO: This is where window value is set, need to set window of mpcb?
+ 	window32 = cur_stream->rcvvar->rcv_wnd >> wscale;
+ 	tcph->window = htons((uint16_t)MIN(window32, TCP_MAX_WINDOW));
+ 	/* if the advertised window is 0, we need to advertise again later */
+@@ -776,7 +309,7 @@ SendTCPPacket(struct mtcp_manager *mtcp, tcp_stream *cur_stream,
+ 	}
+ 
+ 	GenerateTCPOptions(cur_stream, cur_ts, flags, 
+-			(uint8_t *)tcph + TCP_HEADER_LEN, optlen, isControlMsg, mptcp_option, payloadlen);
++			(uint8_t *)tcph + TCP_HEADER_LEN, optlen);
+ 	
+ 	tcph->doff = (TCP_HEADER_LEN + optlen) >> 2;
+ 	// copy payload if exist
+@@ -1029,8 +562,7 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
+ 		/* payload size limited by remaining window space */
+ 		len = MIN(len, remaining_window);
+ 		/* payload size limited by TCP MSS */
+-		// pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+-		pkt_len = MIN(len, sndvar->mss - CalculateOptionLengthMPTCP(TCP_FLAG_ACK, MPTCP_OPTION_CAPABLE, len));
++		pkt_len = MIN(len, sndvar->mss - CalculateOptionLength(TCP_FLAG_ACK));
+ 
+ #if RATE_LIMIT_ENABLED
+ 		// update rate
+@@ -1056,13 +588,8 @@ FlushTCPSendingBuffer(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_
+                     goto out;
+                 }
+ #endif
+-		uint8_t isMPTCP = 0;
+-		if (cur_stream->mptcp_cb != NULL){
+-			isMPTCP = 1;
+-		}
+-		
+ 		if ((sndlen = SendTCPPacket(mtcp, cur_stream, cur_ts,
+-					    TCP_FLAG_ACK, data, pkt_len, isMPTCP)) < 0) {
++					    TCP_FLAG_ACK, data, pkt_len)) < 0) {
+ 			/* there is no available tx buf */
+ 			packets = -3;
+ 			goto out;
+@@ -1089,21 +616,21 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+ 
+ 	if (cur_stream->state == TCP_ST_SYN_SENT) {
+ 		/* Send SYN here */
+-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_SYN, NULL, 0, 1);
++		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_SYN, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_SYN_RCVD) {
+ 		/* Send SYN/ACK here */
+ 		cur_stream->snd_nxt = sndvar->iss;
+ 		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-				TCP_FLAG_SYN | TCP_FLAG_ACK, NULL, 0, 1);
++				TCP_FLAG_SYN | TCP_FLAG_ACK, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_ESTABLISHED) {
+ 		/* Send ACK here */
+-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
++		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_CLOSE_WAIT) {
+ 		/* Send ACK for the FIN here */
+-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
++		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_LAST_ACK) {
+ 		/* if it is on ack_list, send it after sending ack */
+@@ -1112,7 +639,7 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+ 		} else {
+ 			/* Send FIN/ACK here */
+ 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
++					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+ 		}
+ 	} else if (cur_stream->state == TCP_ST_FIN_WAIT_1) {
+ 		/* if it is on ack_list, send it after sending ack */
+@@ -1121,32 +648,32 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+ 		} else {
+ 			/* Send FIN/ACK here */
+ 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
++					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+ 		}
+ 
+ 	} else if (cur_stream->state == TCP_ST_FIN_WAIT_2) {
+ 		/* Send ACK here */
+-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
++		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_CLOSING) {
+ 		if (sndvar->is_fin_sent) {
+ 			/* if the sequence is for FIN, send FIN */
+ 			if (cur_stream->snd_nxt == sndvar->fss) {
+ 				ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-						TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
++						TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+ 			} else {
+ 				ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-						TCP_FLAG_ACK, NULL, 0, 1);
++						TCP_FLAG_ACK, NULL, 0);
+ 			}
+ 		} else {
+ 			/* if FIN is not sent, send fin with ack */
+ 			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, 
+-					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0, 1);
++					TCP_FLAG_FIN | TCP_FLAG_ACK, NULL, 0);
+ 		}
+ 
+ 	} else if (cur_stream->state == TCP_ST_TIME_WAIT) {
+ 		/* Send ACK here */
+-		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
++		ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_ACK, NULL, 0);
+ 
+ 	} else if (cur_stream->state == TCP_ST_CLOSED) {
+ 		/* Send RST here */
+@@ -1156,7 +683,7 @@ SendControlPacket(mtcp_manager_t mtcp, tcp_stream *cur_stream, uint32_t cur_ts)
+ 		if (sndvar->on_send_list || sndvar->on_ack_list) {
+ 			ret = -1;
+ 		} else {
+-			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_RST, NULL, 0, 1);
++			ret = SendTCPPacket(mtcp, cur_stream, cur_ts, TCP_FLAG_RST, NULL, 0);
+ 			if (ret >= 0) {
+ 				DestroyTCPStream(mtcp, cur_stream);
+ 			}
+@@ -1367,7 +894,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
+ 				/* send the queued ack packets */
+ 				while (cur_stream->sndvar->ack_cnt > 0) {
+ 					ret = SendTCPPacket(mtcp, cur_stream, 
+-							cur_ts, TCP_FLAG_ACK, NULL, 0, 1);
++							cur_ts, TCP_FLAG_ACK, NULL, 0);
+ 					if (ret < 0) {
+ 						/* since there is no available write buffer, break */
+ 						break;
+@@ -1379,7 +906,7 @@ WriteTCPACKList(mtcp_manager_t mtcp,
+ 				if (cur_stream->sndvar->is_wack) {
+ 					cur_stream->sndvar->is_wack = FALSE;
+ 					ret = SendTCPPacket(mtcp, cur_stream, 
+-							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0, 1);
++							cur_ts, TCP_FLAG_ACK | TCP_FLAG_WACK, NULL, 0);
+ 					if (ret < 0) {
+ 						/* since there is no available write buffer, break */
+ 						cur_stream->sndvar->is_wack = TRUE;
+diff --git a/mtcp/src/tcp_ring_buffer.c b/mtcp/src/tcp_ring_buffer.c
+index 82df30bc..6b98fa4c 100644
+--- a/mtcp/src/tcp_ring_buffer.c
++++ b/mtcp/src/tcp_ring_buffer.c
+@@ -296,14 +296,17 @@ RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
+ 
+ 	if (len <= 0)
+ 		return 0;
++
+ 	// if data offset is smaller than head sequence, then drop
+ 	if (GetMinSeq(buff->head_seq, cur_seq) != buff->head_seq)
+ 		return 0;
++
+ 	putx = cur_seq - buff->head_seq;
+ 	end_off = putx + len;
+ 	if (buff->size < end_off) {
+ 		return -2;
+ 	}
++	
+ 	// if buffer is at tail, move the data to the first of head
+ 	if (buff->size <= (buff->head_offset + end_off)) {
+ 		memmove(buff->data, buff->head, buff->last_len);
+@@ -321,6 +324,7 @@ RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
+ 	if (buff->tail_offset < buff->head_offset + end_off) 
+ 		buff->tail_offset = buff->head_offset + end_off;
+ 	buff->last_len = buff->tail_offset - buff->head_offset;
++
+ 	// create fragmentation context blocks
+ 	new_ctx = AllocateFragmentContext(rbm);
+ 	if (!new_ctx) {
+@@ -330,6 +334,7 @@ RBPut(rb_manager_t rbm, struct tcp_ring_buffer* buff,
+ 	new_ctx->seq  = cur_seq;
+ 	new_ctx->len  = len;
+ 	new_ctx->next = NULL;
++
+ 	// traverse the fragment list, and merge the new fragment if possible
+ 	for (iter = buff->fctx, prev = NULL, pprev = NULL; 
+ 		iter != NULL;
+diff --git a/mtcp/src/tcp_stream.c b/mtcp/src/tcp_stream.c
+index f5f12647..6bf89ffb 100644
+--- a/mtcp/src/tcp_stream.c
++++ b/mtcp/src/tcp_stream.c
+@@ -224,18 +224,16 @@ tcp_stream *
+ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+ 		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport)
+ {
+-
+ 	tcp_stream *stream = NULL;
+ 	int ret;
+ 
+ 	uint8_t is_external;
+ 	uint8_t *sa;
+ 	uint8_t *da;
+-	// some problem here
++	
+ 	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
+ 
+ 	stream = (tcp_stream *)MPAllocateChunk(mtcp->flow_pool);
+-
+ 	if (!stream) {
+ 		TRACE_ERROR("Cannot allocate memory for the stream. "
+ 				"CONFIG.max_concurrency: %d, concurrent: %u\n", 
+@@ -246,7 +244,6 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
+ 	memset(stream, 0, sizeof(tcp_stream));
+ 
+ 	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
+-
+ 	if (!stream->rcvvar) {
+ 		MPFreeChunk(mtcp->flow_pool, stream);
+ 		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+@@ -291,175 +288,11 @@ CreateTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
+ 	stream->on_hash_table = TRUE;
+ 	mtcp->flow_cnt++;
+ 
+-	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-	if (socket) {
+-		stream->socket = socket;
+-		socket->stream = stream;
+-	}
+-
+-	stream->stream_type = type;
+-	stream->state = TCP_ST_LISTEN;
+-
+-	stream->on_rto_idx = -1;
+-	
+-	stream->sndvar->ip_id = 0;
+-	stream->sndvar->mss = TCP_DEFAULT_MSS;
+-	stream->sndvar->wscale_mine = TCP_DEFAULT_WSCALE;
+-	stream->sndvar->wscale_peer = 0;
+-	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
+-	stream->is_external = is_external;
+-
+-	stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
+-	//stream->sndvar->iss = 0;
+-	stream->rcvvar->irs = 0;
+-
+-	stream->snd_nxt = stream->sndvar->iss;
+-	stream->sndvar->snd_una = stream->sndvar->iss;
+-#if USE_CCP
+-	stream->sndvar->missing_seq = 0;
+-#endif
+-	stream->sndvar->snd_wnd = CONFIG.sndbuf_size;
+-	stream->rcv_nxt = 0;
+-	stream->rcvvar->rcv_wnd = TCP_INITIAL_WINDOW;
+-
+-	stream->rcvvar->snd_wl1 = stream->rcvvar->irs - 1;
+-
+-	stream->sndvar->rto = TCP_INITIAL_RTO;
+-
+-#if BLOCKING_SUPPORT
+-	if (pthread_cond_init(&stream->rcvvar->read_cond, NULL)) {
+-		perror("pthread_cond_init of read_cond");
+-		return NULL;
+-	}
+-	if (pthread_cond_init(&stream->sndvar->write_cond, NULL)) {
+-		perror("pthread_cond_init of write_cond");
+-		return NULL;
+-	}
+-#endif
+-
+-#if USE_SPIN_LOCK
+-	if (pthread_spin_init(&stream->rcvvar->read_lock, PTHREAD_PROCESS_PRIVATE)) {
+-#else
+-	if (pthread_mutex_init(&stream->rcvvar->read_lock, NULL)) {
+-#endif
+-		perror("pthread_mutex_init of read_lock");
+-#if BLOCKING_SUPPORT
+-		pthread_cond_destroy(&stream->rcvvar->read_cond);
+-		pthread_cond_destroy(&stream->sndvar->write_cond);
+-#endif
+-		return NULL;
+-	}
+-#if USE_SPIN_LOCK
+-	if (pthread_spin_init(&stream->sndvar->write_lock, PTHREAD_PROCESS_PRIVATE)) {
+-		perror("pthread_spin_init of write_lock");
+-		pthread_spin_destroy(&stream->rcvvar->read_lock);
+-#else
+-	if (pthread_mutex_init(&stream->sndvar->write_lock, NULL)) {
+-		perror("pthread_mutex_init of write_lock");
+-		pthread_mutex_destroy(&stream->rcvvar->read_lock);
+-#endif
+-#if BLOCKING_SUPPORT
+-		pthread_cond_destroy(&stream->rcvvar->read_cond);
+-		pthread_cond_destroy(&stream->sndvar->write_cond);
+-#endif
+-		return NULL;
+-	}
+-	sa = (uint8_t *)&stream->saddr;
+-	da = (uint8_t *)&stream->daddr;
+-	TRACE_STREAM("CREATED NEW TCP STREAM %d: "
+-			"%u.%u.%u.%u(%d) -> %u.%u.%u.%u(%d) (ISS: %u)\n", stream->id, 
+-			sa[0], sa[1], sa[2], sa[3], ntohs(stream->sport), 
+-			da[0], da[1], da[2], da[3], ntohs(stream->dport), 
+-			stream->sndvar->iss);
+-
+-#if RATE_LIMIT_ENABLED
+-	stream->bucket = NewTokenBucket();
+-#endif
+-#if PACING_ENABLED
+-	stream->pacer = NewPacketPacer();
+-#endif
+-#if USE_CCP
+-	ccp_create(mtcp, stream);
+-#endif
+-
+-	UNUSED(da);
+-	UNUSED(sa);
+-
+-	return stream;
+-}
+-/*---------------------------------------------------------------------------*/
+-tcp_stream *
+-CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type, 
+-		uint32_t saddr, uint16_t sport, uint32_t daddr, uint16_t dport)
+-{
+-	tcp_stream *stream = NULL;
+-	int ret;
+-
+-	uint8_t is_external;
+-	uint8_t *sa;
+-	uint8_t *da;
+-	pthread_mutex_lock(&mtcp->ctx->flow_pool_lock);
+-
+-	stream = (tcp_stream *)MPAllocateChunk(mtcp->flow_pool);
+-	if (!stream) {
+-		TRACE_ERROR("Cannot allocate memory for the stream. "
+-				"CONFIG.max_concurrency: %d, concurrent: %u\n", 
+-				CONFIG.max_concurrency, mtcp->flow_cnt);
+-		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-		return NULL;
+-	}
+-	memset(stream, 0, sizeof(tcp_stream));
+-	
+-	stream->rcvvar = (struct tcp_recv_vars *)MPAllocateChunk(mtcp->rv_pool);
+-	if (!stream->rcvvar) {
+-		MPFreeChunk(mtcp->flow_pool, stream);
+-		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-		return NULL;
+-	}
+-	stream->sndvar = (struct tcp_send_vars *)MPAllocateChunk(mtcp->sv_pool);
+-	if (!stream->sndvar) {
+-		MPFreeChunk(mtcp->rv_pool, stream->rcvvar);
+-		MPFreeChunk(mtcp->flow_pool, stream);
+-		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-		return NULL;
+-	}
+-	memset(stream->rcvvar, 0, sizeof(struct tcp_recv_vars));
+-	memset(stream->sndvar, 0, sizeof(struct tcp_send_vars));
+-
+-	stream->id = mtcp->g_id++;
+-	stream->saddr = saddr;
+-	stream->sport = sport;
+-	stream->daddr = daddr;
+-	stream->dport = dport;
+-
+-	// ret = StreamHTInsert(mtcp->tcp_flow_table, stream);
+-	// if (ret < 0) {
+-	// 	TRACE_ERROR("Stream %d: "
+-	// 			"Failed to insert the stream into hash table.\n", stream->id);
+-	// 	MPFreeChunk(mtcp->flow_pool, stream);
+-	// 	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-	// 	return NULL;
+-	// }
+-
+-#if USE_CCP
+-	ret = StreamHTInsert(mtcp->tcp_sid_table, stream);
+-	if (ret < 0) {
+-		TRACE_ERROR("Stream %d: "
+-				"Failed to insert the stream into SID lookup table.\n", stream->id);
+-		MPFreeChunk(mtcp->flow_pool, stream);
+-		pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+-		return NULL;
+-	}
+-#endif
+-
+-	// stream->on_hash_table = TRUE;
+-	// mtcp->flow_cnt++;
+-
+ 	pthread_mutex_unlock(&mtcp->ctx->flow_pool_lock);
+ 
+ 	if (socket) {
+ 		stream->socket = socket;
+-		// socket->stream = stream;
++		socket->stream = stream;
+ 	}
+ 
+ 	stream->stream_type = type;
+@@ -471,7 +304,7 @@ CreateMpcbTCPStream(mtcp_manager_t mtcp, socket_map_t socket, int type,
+ 	stream->sndvar->mss = TCP_DEFAULT_MSS;
+ 	stream->sndvar->wscale_mine = TCP_DEFAULT_WSCALE;
+ 	stream->sndvar->wscale_peer = 0;
+-	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, stream->saddr, &is_external);
++	stream->sndvar->nif_out = GetOutputInterface(stream->daddr, &is_external);
+ 	stream->is_external = is_external;
+ 
+ 	stream->sndvar->iss = rand_r(&next_seed) % TCP_MAX_SEQ;
+@@ -560,7 +393,7 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
+ 	int bound_addr = FALSE;
+ 	uint8_t *sa, *da;
+ 	int ret;
+-	uint32_t saddr = stream->saddr;
++
+ #ifdef DUMP_STREAM
+ 	if (stream->close_reason != TCP_ACTIVE_CLOSE && 
+ 			stream->close_reason != TCP_PASSIVE_CLOSE) {
+@@ -715,7 +548,7 @@ DestroyTCPStream(mtcp_manager_t mtcp, tcp_stream *stream)
+ 			ret = FreeAddress(mtcp->ap, &addr);
+ 		} else {
+ 			uint8_t is_external;
+-			int nif = GetOutputInterface(addr.sin_addr.s_addr, saddr, &is_external);
++			int nif = GetOutputInterface(addr.sin_addr.s_addr, &is_external);
+ 			if (nif < 0) {
+ 				TRACE_ERROR("nif is negative!\n");
+ 				ret = -1;
+diff --git a/mtcp/src/tcp_util.c b/mtcp/src/tcp_util.c
+index 4e9c3d4f..466f0751 100644
+--- a/mtcp/src/tcp_util.c
++++ b/mtcp/src/tcp_util.c
+@@ -6,8 +6,6 @@
+ #include "debug.h"
+ #include "timer.h"
+ #include "ip_in.h"
+-#include <endian.h>
+-#include <openssl/sha.h>
+ 
+ #define MAX(a, b) ((a)>(b)?(a):(b))
+ #define MIN(a, b) ((a)<(b)?(a):(b))
+@@ -60,89 +58,6 @@ ParseTCPOptions(tcp_stream *cur_stream,
+ 	}
+ }
+ /*---------------------------------------------------------------------------*/
+-uint8_t 
+-ParseMPTCPOptions(tcp_stream *cur_stream, 
+-		uint32_t cur_ts, uint8_t *tcpopt, int len)
+-{
+-	int i;
+-	unsigned int opt, optlen;
+-
+-	for (i = 0; i < len; ) {
+-		// why i++ here? Because after using the value only it will increment, so initially it will be,
+-		// opt = *(tcpopt + 0) = *tcpopt
+-		opt = *(tcpopt + i++);
+-		
+-		if (opt == TCP_OPT_END) {	// end of option field
+-			break;
+-		} else if (opt == TCP_OPT_NOP) {	// no option
+-			continue;
+-		} else {
+-
+-			optlen = *(tcpopt + i++);
+-			if (i + optlen - 2 > len) {
+-				break;
+-			}
+-
+-			if (opt == MPTCP_OPTION_CAPABLE) {
+-				// Check MP_CAPABLE
+-				return MPTCP_OPTION_CAPABLE;
+-
+-			} else if (opt == MPTCP_OPTION_JOIN) {
+-				// Check MP_JOIN
+-				return MPTCP_OPTION_JOIN;
+-
+-			} else {
+-				// Check No MPTCP option
+-				i += optlen - 2;
+-			}
+-		}
+-	}
+-	//  No MPTCP options
+-	return 0;
+-}
+-/*---------------------------------------------------------------------------*/
+-uint64_t 
+-GetPeerKey(tcp_stream *cur_stream, 
+-		uint32_t cur_ts, uint8_t *tcpopt, int len)
+-{
+-	int i;
+-	unsigned int opt, optlen;
+-	uint8_t subtypeAndVersion;
+-	// uint32_t keyLow32,keyHigh32;
+-
+-	for (i = 0; i < len; ) {
+-		// why i++ here? Because after using the value only it will increment, so initially it will be,
+-		// opt = *(tcpopt + 0) = *tcpopt
+-		opt = *(tcpopt + i++);
+-		
+-		if (opt == TCP_OPT_END) {	// end of option field
+-			break;
+-		} else if (opt == TCP_OPT_NOP) {	// no option
+-			continue;
+-		} else {
+-
+-			optlen = *(tcpopt + i++);
+-			if (i + optlen - 2 > len) {
+-				break;
+-			}
+-
+-			if (opt == TCP_OPT_MPTCP) {
+-				// Check MP_CAPABLE and return Peer Key
+-				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
+-				if(subtypeAndVersion == 0x00){
+-					return be64toh(*(uint64_t*)(tcpopt + (i + 2)));
+-				}
+-			}
+-			else{
+-				// Move to next option
+-				i += optlen - 2;
+-			}
+-		}
+-	}
+-	//  No MPTCP options
+-	return 0;
+-}
+-/*---------------------------------------------------------------------------*/
+ inline int  
+ ParseTCPTimestamp(tcp_stream *cur_stream, 
+ 		struct tcp_timestamp *ts, uint8_t *tcpopt, int len)
+@@ -412,160 +327,3 @@ PrintTCPOptions(uint8_t *tcpopt, int len)
+ 		}
+ 	}
+ }
+-
+-/*---------------------------------------------------------------------------*/
+-uint32_t sha1_hash_number(uint64_t number, unsigned char hash[SHA_DIGEST_LENGTH]) {
+-    SHA_CTX sha_ctx;
+-    SHA1_Init(&sha_ctx);
+-    SHA1_Update(&sha_ctx, &number, sizeof(number));
+-    SHA1_Final(hash, &sha_ctx);
+-
+-	// Extract the last 32 bits
+-    uint32_t last32Bits = (uint32_t)(hash[19]) | (uint32_t)(hash[18]) << 8 | (uint32_t)(hash[17]) << 16 | (uint32_t)(hash[16]) << 24;
+-
+-    return last32Bits;
+-}
+-
+-uint32_t sha1hashToken(uint64_t number, unsigned char hash[SHA_DIGEST_LENGTH]) {
+-    SHA_CTX sha_ctx;
+-    SHA1_Init(&sha_ctx);
+-    SHA1_Update(&sha_ctx, &number, sizeof(number));
+-    SHA1_Final(hash, &sha_ctx);
+-
+-	// Extract the first 32 bits
+-    uint32_t first32Bits = (uint32_t)(hash[0]) << 24| (uint32_t)(hash[1]) << 16 | (uint32_t)(hash[2]) << 8 | (uint32_t)(hash[3]);
+-
+-    return first32Bits;
+-}
+-
+-uint32_t
+-GetToken(uint64_t key)
+-{
+-	uint32_t token;
+-
+-	unsigned char hash[SHA_DIGEST_LENGTH];
+-	token = sha1hashToken(htobe64(key), hash);
+-	return token;
+-}
+-
+-uint32_t
+-GetPeerIdsnFromKey(uint64_t key)
+-{
+-	uint32_t peer_idsn;
+-
+-	unsigned char hash[SHA_DIGEST_LENGTH];
+-	peer_idsn = sha1_hash_number(htobe64(key), hash);
+-	return peer_idsn;
+-}
+-
+-// Function to check if a DATA ACK is present in the Data Sequence Signal option type from among the options
+-// present in the TCP header
+-uint32_t
+-GetDataAck(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
+-{
+-	int i;
+-	unsigned int opt, optlen;
+-	uint8_t subtypeAndVersion;
+-	uint32_t dataAck;
+-	uint8_t dataAckPresent = 0;
+-
+-	for (i = 0; i < len; ) {
+-		// why i++ here? Because after using the value only it will increment, so initially it will be,
+-		// opt = *(tcpopt + 0) = *tcpopt
+-		opt = *(tcpopt + i++);
+-		
+-		if (opt == TCP_OPT_END) {	// end of option field
+-			break;
+-		} else if (opt == TCP_OPT_NOP) {	// no option
+-			continue;
+-		} else {
+-
+-			optlen = *(tcpopt + i++);
+-			if (i + optlen - 2 > len) {
+-				break;
+-			}
+-
+-			if (opt == TCP_OPT_MPTCP) {
+-				// Check MP_CAPABLE and return Peer Key
+-				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
+-				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
+-					
+-					dataAckPresent = *(tcpopt + i + 1) & 0x01;
+-					if (dataAckPresent)
+-					{
+-						dataAck = be32toh(*((uint32_t*)(tcpopt + i + 2)));
+-						return dataAck;
+-					}
+-					else{
+-						return 0;
+-					}
+-					
+-				}
+-
+-				// Move to next option
+-				i += optlen - 2;
+-			}
+-			else{
+-				// Move to next option
+-				i += optlen - 2;
+-			}
+-		}
+-	}
+-	//  No DATA_ACK
+-	return 0;
+-}
+-
+-// Get DATA SEQ no
+-uint32_t
+-GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
+-{
+-	int i;
+-	unsigned int opt, optlen;
+-	uint8_t subtypeAndVersion;
+-	uint32_t dataSeq;
+-	uint8_t dataSeqPresent = 0;
+-
+-	for (i = 0; i < len; ) {
+-		// why i++ here? Because after using the value only it will increment, so initially it will be,
+-		// opt = *(tcpopt + 0) = *tcpopt
+-		opt = *(tcpopt + i++);
+-		
+-		if (opt == TCP_OPT_END) {	// end of option field
+-			break;
+-		} else if (opt == TCP_OPT_NOP) {	// no option
+-			continue;
+-		} else {
+-
+-			optlen = *(tcpopt + i++);
+-			if (i + optlen - 2 > len) {
+-				break;
+-			}
+-
+-			if (opt == TCP_OPT_MPTCP) {
+-				// Check MP_CAPABLE and return Peer Key
+-				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
+-				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
+-					dataSeqPresent = *(tcpopt + i + 1) & 0x04;
+-					if (dataSeqPresent)
+-					{
+-						dataSeq = be32toh(*((uint32_t*)(tcpopt + i + 6)));
+-						return dataSeq;
+-					}
+-					else{
+-						return 0;
+-					}
+-					
+-				}
+-
+-				// Move to next option
+-				i += optlen - 2;
+-			}
+-			else{
+-				// Move to next option
+-				i += optlen - 2;
+-			}
+-		}
+-	}
+-	//  No DSS
+-	return 0;
+-}
+\ No newline at end of file
+diff --git a/mtcp/src/todo.txt b/mtcp/src/todo.txt
+deleted file mode 100644
+index 04c86196..00000000
+--- a/mtcp/src/todo.txt
++++ /dev/null
+@@ -1,12 +0,0 @@
+-1. when doing the handshake doesnt check if MP_CAPABLE is there or not, just assumes it is there.
+-    this is wrong, because the other side might not support MP_CAPABLE and thus not send it.
+-
+-2. Assume both are going to use v1
+-3. Assume both use the same key (with value 2)
+-4. Can we assume that each host will have only connection (need to index connections by hash of key?) ?
+-5. I didnt check MPTCP flags (2nd octet)
+-6. Exhanges of crypto algorithm not doesnt
+-7. All the token and keys and HMACs are harcoded as 2 
+-8. Didnt store the Address ID mappings (Just used aadd id 1 for all refer point 4)
+-9. WHat about option lenght when adding all these options?
+-10. 
+\ No newline at end of file

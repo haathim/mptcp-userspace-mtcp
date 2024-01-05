@@ -8,7 +8,6 @@
 inline int
 GetOutputInterface(uint32_t daddr, uint8_t *is_external)
 {
-	//printf("Getting Output Interface of: %u\n", daddr);
 	int nif = -1;
 	int i;
 	int prefix = 0;

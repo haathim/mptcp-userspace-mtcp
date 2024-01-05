@@ -130,13 +130,7 @@ GetPeerKey(tcp_stream *cur_stream,
 				// Check MP_CAPABLE and return Peer Key
 				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
 				if(subtypeAndVersion == 0x00){
-
-					// keyLow32 = (uint32_t)(*(uint64_t*)(tcpopt + (i + 2)) & 0xFFFFFFFF);
-					// keyHigh32 = (uint32_t)((*(uint64_t*)(tcpopt + (i + 2)) >> 32) & 0xFFFFFFFF);
-					// return ((uint64_t)ntohl(keyLow32)<<32) | ntohl(keyHigh32);
-					//printf("PeerKey in network: %lu\n", be64toh(*(uint64_t*)(tcpopt + (i + 2))));
 					return be64toh(*(uint64_t*)(tcpopt + (i + 2)));
-					// return ntohl(*(uint64_t*)(tcpopt + (i + 2)));
 				}
 			}
 			else{
@@ -374,9 +368,9 @@ PrintTCPOptions(uint8_t *tcpopt, int len)
 	unsigned int opt, optlen;
 
 	for (i = 0; i < len; i++) {
-		//printf("%u ", tcpopt[i]);
+		printf("%u ", tcpopt[i]);
 	}
-	//printf("\n");
+	printf("\n");
 
 	for (i = 0; i < len; ) {
 		opt = *(tcpopt + i++);
@@ -389,32 +383,32 @@ PrintTCPOptions(uint8_t *tcpopt, int len)
 
 			optlen = *(tcpopt + i++);
 
-			//printf("Option: %d", opt);
-			//printf(", length: %d", optlen);
+			printf("Option: %d", opt);
+			printf(", length: %d", optlen);
 
 			if (opt == TCP_OPT_MSS) {
 				uint16_t mss;
 				mss = *(tcpopt + i++) << 8;
 				mss += *(tcpopt + i++);
-				//printf(", MSS: %u", mss);
+				printf(", MSS: %u", mss);
 			} else if (opt == TCP_OPT_SACK_PERMIT) {
-				//printf(", SACK permit");
+				printf(", SACK permit");
 			} else if (opt == TCP_OPT_TIMESTAMP) {
 				uint32_t ts_val, ts_ref;
 				ts_val = *(uint32_t *)(tcpopt + i);
 				i += 4;
 				ts_ref = *(uint32_t *)(tcpopt + i);
 				i += 4;
-				//printf(", TSval: %u, TSref: %u", ts_val, ts_ref);
+				printf(", TSval: %u, TSref: %u", ts_val, ts_ref);
 			} else if (opt == TCP_OPT_WSCALE) {
 				uint8_t wscale;
 				wscale = *(tcpopt + i++);
-				//printf(", Wscale: %u", wscale);
+				printf(", Wscale: %u", wscale);
 			} else {
 				// not handle
 				i += optlen - 2;
 			}
-			//printf("\n");
+			printf("\n");
 		}
 	}
 }
@@ -548,20 +542,16 @@ GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 			}
 
 			if (opt == TCP_OPT_MPTCP) {
-				//printf("MPTCP option.......................................\n");
 				// Check MP_CAPABLE and return Peer Key
 				subtypeAndVersion = (uint8_t)(*(tcpopt + i));
 				if(subtypeAndVersion == ((TCP_MPTCP_SUBTYPE_DSS << 4) | 0)){
-					//printf("DSS Option present\n");
 					dataSeqPresent = *(tcpopt + i + 1) & 0x04;
 					if (dataSeqPresent)
 					{
-						//printf("DATA_SEQ present\n");
 						dataSeq = be32toh(*((uint32_t*)(tcpopt + i + 6)));
 						return dataSeq;
 					}
 					else{
-						//printf("No DATA_SEQ present\n");
 						return 0;
 					}
 					
@@ -577,6 +567,5 @@ GetDataSeq(tcp_stream *cur_stream, uint8_t *tcpopt, int len)
 		}
 	}
 	//  No DSS
-	//printf("No DSS option\n");
 	return 0;
 }
